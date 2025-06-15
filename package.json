@@ -1,0 +1,41 @@
+{
+  "name": "@momito/onbored-js",
+  "version": "0.1.0",
+  "description": "Session replay SDK for OnBored",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts",
+    "dev": "tsup src/index.ts --watch"
+  },
+  "dependencies": {
+    "pako": "^2.1.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.64"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "@types/react": "^19.1.6",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3"
+  },
+  "keywords": [
+    "onbored",
+    "session-replay",
+    "onboarding",
+    "analytics"
+  ],
+  "license": "MIT"
+}
