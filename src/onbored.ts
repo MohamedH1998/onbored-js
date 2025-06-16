@@ -63,8 +63,10 @@ class Onbored {
 
   constructor() {
     this.sessionId = this.loadOrCreateSessionId();
-    (window as any).__onboredFlush = () => this.flush(); // for local dev testing
-    this.startRetryLoop(); // Start the retry loop
+    if (typeof window !== "undefined") {
+      (window as any).__onboredFlush = () => this.flush();
+      this.startRetryLoop();
+    }
   }
 
   async init(projectKey: string, options: OnboredOptions = {}) {
@@ -85,8 +87,10 @@ class Onbored {
       return;
     }
 
-    window.addEventListener("beforeunload", () => this.flush(true));
-    this.startFlushTimer();
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", () => this.flush(true));
+      this.startFlushTimer();
+    }
 
     try {
       await fetch("/api/ingest/session", {
@@ -389,6 +393,11 @@ class Onbored {
   }
 
   private trackPageview() {
+    if (typeof window === "undefined") {
+      console.warn("[Onbored - trackPageview] No window object found");
+      return;
+    }
+
     this.capture("Page View", {
       options: {
         path: window.location.pathname,
@@ -420,6 +429,11 @@ class Onbored {
   }
 
   private startFlushTimer() {
+    if (typeof window === "undefined") {
+      console.warn("[Onbored - startFlushTimer] No window object found");
+      return;
+    }
+
     this.flushTimer = window.setInterval(
       () => this.flush(),
       this.flushInterval

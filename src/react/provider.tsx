@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useEffect } from "react";
 
 import onbored from "../onbored";
@@ -23,13 +21,15 @@ export function OnBoredProvider({
   options,
 }: WithChildren<OnBoredProviderProps>) {
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") {
+      console.warn("[OnBoredProvider] No window object found");
+      return;
+    }
 
     if (client) {
       // Already initialized externally
       return;
     }
-
     if (!projectKey) {
       console.warn("[OnBoredProvider] Missing projectKey");
       return;
