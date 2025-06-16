@@ -1,7 +1,11 @@
 {
   "name": "@momito/onbored-js",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "description": "Session replay SDK for OnBored",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
