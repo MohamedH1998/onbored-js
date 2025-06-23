@@ -1,204 +1,192 @@
-# OnPulse SDK Documentation
+# Onbored SDK Documentation
+
+The Onbored SDK is a plug-and-play JavaScript library for capturing onboarding events, user journeys, and flow analytics. It's designed to help B2B SaaS products improve user activation and reduce churn with minimal setup.
+
+---
 
 ## Overview
-OnPulse is a powerful session replay and analysis SDK that enables you to capture user sessions, analyze user behavior, and gain actionable insights to improve your application's user experience.
+
+The SDK allows you to:
+
+- Track onboarding flows, steps, skips, and completions
+- Auto-generate and manage sessions
+- Queue and retry events with offline support
+- Initialize quickly with a project key
+
+---
 
 ## Installation
 
 ```bash
-npm install on-pulse
-# or
-yarn add on-pulse
-# or
-pnpm add on-pulse
+# npm
+npm install @onbored/sdk
+
+# yarn
+yarn add @onbored/sdk
+
+# pnpm
+pnpm add @onbored/sdk
 ```
+
+---
 
 ## Quick Start
 
-### Basic Implementation
+### Initialize the SDK
+
 ```typescript
-import { SmartRecorderProvider } from 'on-pulse';
+import onbored from "@onbored/sdk";
 
-function App() {
-  return (
-    <SmartRecorderProvider
-      apiKey="your-api-key"
-      options={{
-        apiHost: "https://your-api-host.com",
-        // Additional options...
-      }}
-    >
-      {/* Your app components */}
-    </SmartRecorderProvider>
-  );
-}
-```
-
-### Manual Initialization
-```typescript
-import { smartRecorder } from 'on-pulse';
-
-smartRecorder.init('your-api-key', {
-  apiHost: 'https://your-api-host.com',
-  // Additional options...
+onbored.init("pk_live_1234567890abcdef", {
+  userId: "user_123",
+  traits: { plan: "premium" },
+  debug: true,
 });
 ```
 
-## Core Features
+**Initialization Options:**
 
-### 1. Session Recording
-The SDK automatically captures:
-- User interactions (clicks, scrolls, form inputs)
-- Page navigation
-- Console logs
-- Network requests
-- Performance metrics
+| Option   | Type                            | Description                               |
+| -------- | ------------------------------- | ----------------------------------------- |
+| `userId` | `string`                        | Optional user identifier                  |
+| `traits` | `Record<string, any>`           | Optional user metadata (e.g., plan, role) |
+| `debug`  | `boolean`                       | Enables debug mode                        |
+| `env`    | `"development" \| "production"` | Enables development mode behavior         |
 
-### 2. Performance Monitoring
-Tracks key web vitals:
-- First Contentful Paint (FCP)
-- Largest Contentful Paint (LCP)
-- First Input Delay (FID)
-- Cumulative Layout Shift (CLS)
-
-### 3. Network Monitoring
-Captures:
-- API requests and responses
-- Request/response headers
-- Request duration
-- Error tracking
-
-## API Reference
-
-### SmartRecorderProvider Props
-
-| Prop | Type | Description |
-|------|------|-------------|
-| `apiKey` | string | Your OnPulse API key |
-| `options` | SmartReplayOptions | Configuration options |
-| `client` | SmartRecorder | Optional pre-initialized client |
-
-### SmartReplayOptions
+### Tracking Flows and Events
 
 ```typescript
-interface SmartReplayOptions {
-  apiHost: string;
-  uploadUrl?: string;
-  debug?: boolean;
-  onError?: (error: Error) => void;
-  // Additional options...
+onbored.flow("Onboarding");
+onbored.step("Invite Team", { flow: "Onboarding" });
+onbored.skip("Billing Info", { flow: "Onboarding" });
+onbored.completed({ flow: "Onboarding" });
+```
+
+---
+
+## Core Concepts
+
+| Method        | Description                                |
+| ------------- | ------------------------------------------ |
+| `flow()`      | Starts a named flow                        |
+| `step()`      | Tracks a step completion                   |
+| `skip()`      | Records a skipped step                     |
+| `completed()` | Marks a flow as completed                  |
+| `context()`   | Merges additional user traits              |
+| `reset()`     | Regenerates the session and clears context |
+
+---
+
+## Event Payload Schema
+
+```typescript
+interface EventPayload {
+  eventType: string;
+  flowName?: string;
+  step?: string;
+  options: Record<string, any>;
+  result?: string;
+  traits?: Record<string, any>;
+  sessionId: string;
+  timestamp: string; // ISO 8601 format
+  projectKey: string;
+  url: string;
+  referrer?: string;
 }
 ```
 
-### Core Methods
+Payloads are validated using Zod to ensure integrity.
 
-#### `smartRecorder.init(projectKey: string, options: SmartReplayOptions)`
-Initializes the recorder with your project key and configuration options.
+---
 
-#### `smartRecorder.stop()`
-Stops the recording session.
+## Retry and Flush Logic
 
-#### `smartRecorder.getSessionId()`
-Returns the current session ID.
+- Events are flushed every 5 seconds or on page unload
+- Failed flushes are retried with exponential backoff (up to 5 attempts)
+- Events are queued in memory until successfully sent
 
-#### `smartRecorder.clearEvents()`
-Clears all recorded events.
+---
 
-## Plugins
+## React Integration
 
-### Console Plugin
-Captures console logs, warnings, and errors.
+### Using the Provider
 
-### Performance Plugin
-Monitors and reports web vitals and performance metrics.
+```tsx
+import { OnBoredProvider } from "@onbored/sdk/react";
 
-### Network Plugin
-Tracks network requests and responses.
-
-## Session Management
-
-The SDK automatically manages sessions with the following features:
-- 30-minute session timeout
-- Automatic session renewal
-- Session persistence across page reloads
-- Unique session identification
-
-## Best Practices
-
-1. **Initialization**
-   - Initialize the SDK as early as possible in your application
-   - Use the provider pattern for React applications
-   - Keep your API key secure
-
-2. **Performance**
-   - The SDK is designed to have minimal impact on your application's performance
-   - Events are batched and uploaded periodically
-   - Network requests are optimized to reduce overhead
-
-3. **Privacy**
-   - Sensitive data can be masked using configuration options
-   - Network requests can be filtered
-   - Console logs can be sanitized
-
-## Error Handling
-
-The SDK includes built-in error handling:
-- Automatic retry mechanism for failed uploads
-- Error reporting through the `onError` callback
-- Debug mode for development
-
-## Development
-
-For local development:
-```bash
-# Link the SDK locally
-pnpm add ../on-pulse --save-dev
-
-# Run in development mode
-NEXT_PUBLIC_SMART_RECORDER_KEY=your-key
-NEXT_PUBLIC_SMART_RECORDER_HOST=http://localhost:3000/api
+<OnBoredProvider projectKey="pk_live_123">
+  <App />
+</OnBoredProvider>;
 ```
 
-## Browser Support
+### useFlow Hook
 
-The SDK supports all modern browsers:
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
+```tsx
+const { step, skip, complete } = useFlow("Onboarding", modalOpen);
 
-## Limitations
+step("Setup Profile", { method: "email" });
+skip("Invite Team", { reason: "Solo user" });
+complete();
+```
 
-- Session recording is not supported in older browsers
-- Some features may be limited in private browsing mode
-- Network monitoring may be affected by CORS policies
+---
 
-## Troubleshooting
+## Development Mode
 
-Common issues and solutions:
+When `env: "development"` is set:
 
-1. **Recording not starting**
-   - Check if the API key is correct
-   - Verify the API host is accessible
-   - Ensure the SDK is properly initialized
+- Events are not sent to the server
+- All actions are logged to the console
+- Useful for local development and debugging
 
-2. **Performance issues**
-   - Check if debug mode is enabled
-   - Verify network connectivity
-   - Monitor browser console for errors
+---
 
-3. **Data not uploading**
-   - Check network connectivity
-   - Verify API endpoint accessibility
-   - Check for CORS issues
+## Session Handling
 
-## Support
+- Sessions expire after 30 minutes of inactivity
+- Session ID is stored in localStorage
+- Page views are auto-captured on `init()`
 
-For additional support:
-- Check the documentation
-- Open an issue on GitHub
-- Contact support
+---
 
-## License
+## Utilities
 
-MIT License
+### `context(traits: Record<string, any>)`
+
+Merge additional context traits into the current session.
+
+```typescript
+onbored.context({ companySize: "11-50", role: "admin" });
+```
+
+### `reset()`
+
+Reset the session and clear all user traits.
+
+```typescript
+onbored.reset();
+```
+
+---
+
+## Full Example
+
+```typescript
+onbored.init("pk_123", { userId: "alice" });
+
+onbored.flow("Onboarding");
+onbored.step("Sign Up", { method: "email" });
+onbored.step("Complete Profile", { age: 29 });
+onbored.skip("Invite Team", { reason: "No team yet" });
+onbored.completed({ flow: "Onboarding" });
+```
+
+---
+
+## Notes
+
+- Payloads are structured for batch sending and analytics backend ingestion
+- Debug logs are grouped for better inspection during development
+- Plugin system and devtools support are under development
+
+Let us know if you need documentation on backend integrations, plugin hooks, or event dashboards.

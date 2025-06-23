@@ -1,5 +1,4 @@
 import React, { useEffect } from "react";
-
 import onbored from "../onbored";
 
 type OnBoredOptions = {
@@ -8,18 +7,19 @@ type OnBoredOptions = {
   debug?: boolean;
 };
 
-type WithChildren<T> = T & { children: React.ReactNode };
-
-type OnBoredProviderProps =
-  | { client: typeof onbored; projectKey?: never; options?: never }
-  | { projectKey: string; options?: OnBoredOptions; client?: never };
+type OnBoredProviderProps = {
+  client?: typeof onbored;
+  projectKey?: string;
+  options?: OnBoredOptions;
+  children: React.ReactNode;
+};
 
 export function OnBoredProvider({
   children,
   client,
   projectKey,
   options,
-}: WithChildren<OnBoredProviderProps>) {
+}: OnBoredProviderProps) {
   useEffect(() => {
     if (typeof window === "undefined") {
       console.warn("[OnBoredProvider] No window object found");
@@ -27,17 +27,17 @@ export function OnBoredProvider({
     }
 
     if (client) {
-      // Already initialized externally
+      console.log("[OnBoredProvider] Using external client");
       return;
     }
+
     if (!projectKey) {
       console.warn("[OnBoredProvider] Missing projectKey");
       return;
     }
 
-    if (!onbored) return;
-
     onbored.init(projectKey, options || {});
+    console.log("[OnBoredProvider] Initialized with", { projectKey, options });
   }, [client, projectKey, options]);
 
   return <>{children}</>;

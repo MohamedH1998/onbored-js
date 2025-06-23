@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export const eventPayloadSchema = z.object({
   eventType: z.string(),
-  flowName: z.string().optional(),
+  flowId: z.string().optional(),
   step: z.string().optional(),
   options: z.record(z.any()).default({}),
   result: z.string().optional(),
@@ -32,7 +32,7 @@ type RetryEvent = {
 
 export interface EventPayload {
   eventType: string;
-  flowName?: string;
+  flowId?: string;
   step?: string;
   options: OnboredOptions & Record<string, any>;
   result?: string;
@@ -57,12 +57,17 @@ class Onbored {
   private sessionId: string;
   private debug: boolean = false;
   private eventQueue: EventPayload[] = [];
+  private readonly MAX_QUEUE_SIZE = 1000;
   private flushInterval: number = 5000;
   private flushTimer?: number;
   private isDev: boolean = false;
+  private isInitialized = false;
+  private queuedFlows: string[] = [];
+  private trackingPageviewsForFlows = new Set<string>();
 
   constructor() {
     this.sessionId = this.loadOrCreateSessionId();
+    this.restoreFlowContextsFromStorage();
     if (typeof window !== "undefined") {
       (window as any).__onboredFlush = () => this.flush();
       this.startRetryLoop();
@@ -104,74 +109,90 @@ class Onbored {
         }),
         headers: { "Content-Type": "application/json" },
       });
+
       if (this.debug) console.log("[Onbored] Session registered");
+
+      this.isInitialized = true;
+      this.queuedFlows.forEach((flow) => this.flow(flow));
+      this.queuedFlows = [];
+      this.trackPageview();
     } catch (err) {
       if (this.debug)
         console.error("[Onbored] Session registration failed:", err);
     }
-
-    this.trackPageview();
   }
 
-  async flow(name: string) {
-    this.flowContexts.set(name, {
-      startedAt: Date.now(),
-      status: "started",
-    });
-
-    if (this.isDev) {
-      console.log("Mock flow started:", name);
+  async flow(id: string) {
+    console.log("🔵🟡 - flow", id);
+    console.log("🔵🟡 - isInitialized", this.isInitialized);
+    if (!this.isInitialized) {
+      this.queuedFlows.push(id);
+      if (this.debug) console.log("[Onbored] Queued flow:", id);
       return;
     }
 
-    this.capture("Flow Started", { options: { flow: name } }, false);
+    if (this.flowContexts.has(id)) {
+      if (this.debug) console.warn(`[Onbored] Flow ${id} already exists`);
+      return;
+    }
+
+    if (this.isDev) {
+      console.log("Mock flow started:", id);
+      return;
+    }
 
     fetch("/api/ingest/flow", {
       method: "POST",
       body: JSON.stringify({
         sessionId: this.sessionId,
         projectKey: this.projectKey,
-        flowName: name,
+        flowId: id,
         startedAt: new Date().toISOString(),
       }),
       headers: { "Content-Type": "application/json" },
     })
-      .then(() => {
-        if (this.debug) console.log("[Onbored] Flow registered");
+      .then((response) => response.json())
+      .then((data: { status: string; flowId: string }) => {
+        if (this.debug) console.log("[Onbored] Flow registered", data);
+        this.capture("Flow Started", { options: { flowId: data.flowId } });
+        this.flowContexts.set(id, {
+          id: data.flowId,
+          startedAt: Date.now(),
+          status: "started",
+        });
+        this.trackingPageviewsForFlows.add(data.flowId);
       })
       .catch((err) => {
         if (this.debug)
           console.error("[Onbored] Flow registration failed:", err);
       });
-
+    this.saveFlowContextsToStorage();
     // ✅ Only this capture
-    const payload = this.capture(
-      "Flow Started",
-      {
-        options: { flow: name },
-      },
-      false // do not queue
-    );
+    // const payload = this.capture(
+    //   "Flow Started",
+    //   {
+    //     options: { flow: id },
+    //   },
+    //   false // do not queue
+    // );
 
-    console.log("🟡 - payload", payload);
-
-    // ✅ And only this manual flush
-    fetch("/api/ingest", {
-      method: "POST",
-      body: JSON.stringify([payload]),
-      headers: { "Content-Type": "application/json" },
-    })
-      .then(() => {
-        if (this.debug) console.log("[Onbored] Flow Started event flushed");
-      })
-      .catch((err) => {
-        if (this.debug)
-          console.error("[Onbored] Failed to flush Flow Started event:", err);
-      });
+    // // ✅ And only this manual flush
+    // fetch("/api/ingest", {
+    //   method: "POST",
+    //   body: JSON.stringify([payload]),
+    //   headers: { "Content-Type": "application/json" },
+    // })
+    //   .then(() => {
+    //     if (this.debug) console.log("[Onbored] Flow Started event flushed");
+    //   })
+    //   .catch((err) => {
+    //     if (this.debug)
+    //       console.error("[Onbored] Failed to flush Flow Started event:", err);
+    //   });
   }
 
-  step(stepName: string, options: { flow: string } & Record<string, any>) {
-    const context = this.getFlowContext(options.flow);
+  step(stepName: string, options: { flowId: string } & Record<string, any>) {
+    const context = this.getFlowContext(options.flowId);
 
     if (!context) return;
 
@@ -182,13 +203,13 @@ class Onbored {
 
     if (this.debug) {
       console.log(
-        `[Onbored] Step started: ${stepName} (flow: ${options.flow})`
+        `[Onbored] Step started: ${stepName} (flow: ${options.flowId})`
       );
     }
   }
 
-  skip(stepName: string, options: { flow: string } & Record<string, any>) {
-    const context = this.getFlowContext(options.flow);
+  skip(stepName: string, options: { flowId: string } & Record<string, any>) {
+    const context = this.getFlowContext(options.flowId);
 
     if (!context) return;
 
@@ -198,28 +219,31 @@ class Onbored {
     });
   }
 
-  completed(options: { flow: string } & Record<string, any>) {
-    const context = this.getFlowContext(options.flow);
+  completed(options: { flowId: string } & Record<string, any>) {
+    const context = this.getFlowContext(options.flowId);
 
     if (!context) return;
 
     this.capture("Flow Completed", {
       options: {
         ...options,
-        flow: options.flow,
+        flowId: options.flowId,
       },
     });
 
     if (this.debug) {
       console.log("[Onbored] Flow completed:", {
-        flow: options.flow,
+        flowId: options.flowId,
       });
     }
 
-    this.flowContexts.set(options.flow, {
-      ...context,
+    this.flowContexts.set(options.flowId, {
+      id: context.id,
+      startedAt: context.startedAt,
       status: "completed",
     });
+
+    this.trackingPageviewsForFlows.delete(context.id);
 
     this.flush(); // flush immediately after completion
   }
@@ -228,18 +252,18 @@ class Onbored {
     eventType: string,
     data: {
       step?: string;
-      options?: Record<string, any>;
+      options?: { flowId?: string } & Record<string, any>;
       result?: string;
     },
     enqueue: boolean = true
   ): EventPayload | null {
     const payload: EventPayload = {
       eventType,
-      flowName: data.options?.flow,
+      flowId: data.options?.flowId,
       step: data.step,
       options: {
         ...data.options,
-        flow: data.options?.flow,
+        flowId: data.options?.flowId,
       },
       result: data.result,
       traits: this.traits,
@@ -361,6 +385,32 @@ class Onbored {
     }
   }
 
+  private saveFlowContextsToStorage() {
+    if (typeof window === "undefined") return;
+    const raw = JSON.stringify({
+      sessionId: this.sessionId,
+      flows: Array.from(this.flowContexts.entries()),
+    });
+    sessionStorage.setItem("__onbored_flow_contexts", raw);
+  }
+
+  private restoreFlowContextsFromStorage() {
+    if (typeof window === "undefined") return;
+    const raw = sessionStorage.getItem("__onbored_flow_contexts");
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.sessionId !== this.sessionId) return; // session changed
+
+      this.flowContexts = new Map(parsed.flows);
+      if (this.debug)
+        console.log("[Onbored] Restored flowContexts:", this.flowContexts);
+    } catch (err) {
+      console.warn("[Onbored] Failed to restore flow context:", err);
+    }
+  }
+
   context(contextTraits: Record<string, any>) {
     this.traits = { ...this.traits, ...contextTraits };
     if (this.debug) console.log("[Onbored] Context updated:", this.traits);
@@ -370,23 +420,25 @@ class Onbored {
     this.sessionId = uuidv4();
     this.traits = undefined;
     this.flowContexts.clear();
+    this.trackingPageviewsForFlows.clear();
     if (this.debug) console.log("[Onbored] Reset session and traits");
   }
 
   private flowContexts = new Map<
     string,
     {
+      id: string; // ✅ new
       startedAt: number;
       status?: "started" | "completed" | "abandoned";
     }
   >();
 
   private getFlowContext(
-    flow: string
-  ): { startedAt: number; status?: string } | null {
-    const context = this.flowContexts.get(flow);
+    flowId: string
+  ): { id: string; startedAt: number; status?: string } | null {
+    const context = this.flowContexts.get(flowId);
     if (!context) {
-      console.warn(`[Onbored] No context for flow: "${flow}"`);
+      console.warn(`[Onbored] No context for flow: "${flowId}"`);
       return null;
     }
     return context;
@@ -398,10 +450,14 @@ class Onbored {
       return;
     }
 
+    const flowIds = Array.from(this.trackingPageviewsForFlows);
+
     this.capture("Page View", {
       options: {
         path: window.location.pathname,
         title: document.title,
+        // @TODO: Add support for multiple flows
+        ...(flowIds.length > 0 && { flowId: flowIds[0] }),
       },
     });
   }
