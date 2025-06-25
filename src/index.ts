@@ -1,3 +1,15 @@
+// Core SDK
+export { Onbored } from "./onbored";
 export { default as onbored } from "./onbored";
-export { OnBoredProvider } from "./react/provider";
-export { useFlow } from "./react/hooks/useFlow";
+
+// React Integration
+export {
+  OnBoredProvider,
+  useOnbored,
+  useOnboredClient,
+  useFlow,
+  usePageView,
+} from "./react";
+
+// Types
+export type { OnboredConfig, OnboredOptions, EventPayload } from "./onbored";
