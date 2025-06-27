@@ -45,8 +45,8 @@ export interface EventPayload {
 }
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const SESSION_STORAGE_KEY = "__smartreplay_session_id";
-const ACTIVITY_STORAGE_KEY = "__smartreplay_last_activity";
+const SESSION_STORAGE_KEY = "__onbored_session_id";
+const ACTIVITY_STORAGE_KEY = "__onbored_last_activity";
 
 interface OnboredConfig {
   projectKey: string;
@@ -78,6 +78,7 @@ class Onbored {
   private maxRetries: number;
   private retryIntervalMs: number;
   private sessionTimeoutMs: number;
+  private activeFlowSlug?: string;
 
   constructor(config: OnboredConfig) {
     this.projectKey = config.projectKey;
@@ -144,6 +145,7 @@ class Onbored {
           startedAt: Date.now(),
           status: "started",
         });
+        this.activeFlowSlug = funnelSlug;
         this.trackingPageviewsForFlows.add(data.flowId);
       })
       .catch((err) => {
@@ -396,9 +398,10 @@ class Onbored {
   private flowContexts = new Map<
     string,
     {
-      id: string; // ✅ new
+      id: string;
       startedAt: number;
       status?: "started" | "completed" | "abandoned";
+      lastVisitedPath?: string;
     }
   >();
 
@@ -413,30 +416,79 @@ class Onbored {
     return context;
   }
 
-  private trackPageview() {
-    if (typeof window === "undefined") {
-      console.warn("[Onbored - trackPageview] No window object found");
-      return;
-    }
+  private trackPageview = () => {
+    if (typeof window === "undefined") return;
 
     const flowIds = Array.from(this.trackingPageviewsForFlows);
+    const pageViewOptions: Record<string, any> = {
+      path: window.location.pathname,
+      title: document.title,
+    };
 
-    this.capture("Page View", {
-      options: {
-        path: window.location.pathname,
-        title: document.title,
-        // @TODO: Add support for multiple flows
-        ...(flowIds.length > 0 && { flowId: flowIds[0] }),
-      },
-    });
+    if (flowIds.length > 0) {
+      // @TODO: Add support for multiple flows
+      pageViewOptions.flowId = flowIds[0];
+    }
+
+    this.capture("Page View", { options: pageViewOptions });
+  };
+
+  private enableAutoPageviewTracking(): void {
+    if (typeof window === "undefined") return;
+
+    // 1. Capture back/forward
+    window.addEventListener("popstate", this.trackPageview);
+
+    // 2. Patch pushState/replaceState
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+
+    const patched =
+      (method: any, orig: any) =>
+      (...args: any[]) => {
+        const result = orig.apply(this, args);
+
+        setTimeout(() => {
+          const path = window.location.pathname;
+
+          const ctx = this.activeFlowSlug
+            ? this.flowContexts.get(this.activeFlowSlug)
+            : null;
+          if (ctx) {
+            const last = ctx.lastVisitedPath;
+            if (last && path !== last) {
+              this.capture("Page View", {
+                options: {
+                  from: last,
+                  to: path,
+                  flowId: ctx.id,
+                  funnelSlug: this.activeFlowSlug,
+                  path: window.location.pathname,
+                  title: document.title,
+                },
+              });
+            }
+            ctx.lastVisitedPath = path;
+          }
+
+          this.saveFlowContextsToStorage();
+          this.trackPageview();
+        }, 0);
+
+        return result;
+      };
+
+    history.pushState = patched("pushState", origPush);
+    history.replaceState = patched("replaceState", origReplace);
+
+    if (this.debug) console.log("[Onbored] SPA route change tracking enabled");
   }
-
   private getSessionStorageKey(): string {
-    return `__smartreplay_session_id_${this.projectKey}`;
+    return `__onbored_session_id_${this.projectKey}`;
   }
 
   private getActivityStorageKey(): string {
-    return `__smartreplay_last_activity_${this.projectKey}`;
+    return `__onbored_last_activity_${this.projectKey}`;
   }
 
   private getFlowContextsStorageKey(): string {
@@ -568,6 +620,7 @@ class Onbored {
       this.queuedFlows.forEach((flow) => this.flow(flow));
       this.queuedFlows = [];
       this.trackPageview();
+      this.enableAutoPageviewTracking();
     } catch (err) {
       if (this.debug)
         console.error("[Onbored] Session registration failed:", err);
