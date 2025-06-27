@@ -1,34 +1,76 @@
 import { useEffect, useCallback } from "react";
-import onbored from "../../onbored"; // adjust path
+import { useOnbored } from "../provider";
 
 type StepOptions = Record<string, any>;
 
-export function useFlow(flowName: string) {
+export function useFlow(funnelSlug: string) {
+  const { client, isInitialized } = useOnbored();
+
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    void onbored.flow(flowName); // 🚀 starts or queues
-  }, [flowName]);
+    if (typeof window === "undefined" || !client || !isInitialized) return;
+
+    try {
+      void client.flow(funnelSlug);
+    } catch (error) {
+      console.error(`[useFlow] Failed to start flow ${funnelSlug}:`, error);
+    }
+  }, [client, isInitialized, funnelSlug]);
 
   const step = useCallback(
     (stepName: string, options: StepOptions = {}) => {
-      onbored.step(stepName, { flow: flowName, ...options });
+      if (!client) {
+        console.warn("[useFlow] Client not initialized");
+        return;
+      }
+
+      try {
+        client.step(stepName, { funnelSlug: funnelSlug, ...options });
+      } catch (error) {
+        console.error(`[useFlow] Failed to record step ${stepName}:`, error);
+      }
     },
-    [flowName]
+    [client, funnelSlug]
   );
 
   const skip = useCallback(
     (stepName: string, options: StepOptions = {}) => {
-      onbored.skip(stepName, { flow: flowName, ...options });
+      if (!client) {
+        console.warn("[useFlow] Client not initialized");
+        return;
+      }
+
+      try {
+        client.skip(stepName, { funnelSlug: funnelSlug, ...options });
+      } catch (error) {
+        console.error(`[useFlow] Failed to record skip ${stepName}:`, error);
+      }
     },
-    [flowName]
+    [client, funnelSlug]
   );
 
   const complete = useCallback(
     (options: StepOptions = {}) => {
-      onbored.completed({ flow: flowName, ...options });
+      if (!client) {
+        console.warn("[useFlow] Client not initialized");
+        return;
+      }
+
+      try {
+        client.completed({ funnelSlug: funnelSlug, ...options });
+      } catch (error) {
+        console.error(
+          `[useFlow] Failed to complete flow ${funnelSlug}:`,
+          error
+        );
+      }
     },
-    [flowName]
+    [client, funnelSlug]
   );
 
-  return { step, skip, complete };
+  return {
+    step,
+    skip,
+    complete,
+    isReady: !!client && isInitialized,
+  };
 }

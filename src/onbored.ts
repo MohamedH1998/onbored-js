@@ -1,11 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
-// import { Axiom } from "@axiomhq/js";
-// import { AXIOM_PUBLIC_CONFIG } from "./config";
 
 export const eventPayloadSchema = z.object({
   eventType: z.string(),
   flowId: z.string().optional(),
+  funnelSlug: z.string().optional(),
   step: z.string().optional(),
   options: z.record(z.any()).default({}),
   result: z.string().optional(),
@@ -33,6 +32,7 @@ type RetryEvent = {
 export interface EventPayload {
   eventType: string;
   flowId?: string;
+  funnelSlug?: string;
   step?: string;
   options: OnboredOptions & Record<string, any>;
   result?: string;
@@ -45,99 +45,84 @@ export interface EventPayload {
 }
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const SESSION_STORAGE_KEY = "__smartreplay_session_id";
-const ACTIVITY_STORAGE_KEY = "__smartreplay_last_activity";
+const SESSION_STORAGE_KEY = "__onbored_session_id";
+const ACTIVITY_STORAGE_KEY = "__onbored_last_activity";
 
-// const axiom = new Axiom(AXIOM_PUBLIC_CONFIG);
+interface OnboredConfig {
+  projectKey: string;
+  userId?: string;
+  traits?: Record<string, any>;
+  debug?: boolean;
+  env?: "development" | "production";
+  flushInterval?: number;
+  maxQueueSize?: number;
+  maxRetries?: number;
+  retryIntervalMs?: number;
+  sessionTimeoutMs?: number;
+}
 
 class Onbored {
-  private projectKey: string = "";
+  private projectKey: string;
   private userId?: string;
   private traits?: Record<string, any>;
   private sessionId: string;
   private debug: boolean = false;
   private eventQueue: EventPayload[] = [];
-  private readonly MAX_QUEUE_SIZE = 1000;
-  private flushInterval: number = 5000;
+  private readonly MAX_QUEUE_SIZE: number;
+  private flushInterval: number;
   private flushTimer?: number;
   private isDev: boolean = false;
   private isInitialized = false;
   private queuedFlows: string[] = [];
   private trackingPageviewsForFlows = new Set<string>();
+  private maxRetries: number;
+  private retryIntervalMs: number;
+  private sessionTimeoutMs: number;
+  private activeFlowSlug?: string;
 
-  constructor() {
+  constructor(config: OnboredConfig) {
+    this.projectKey = config.projectKey;
+    this.userId = config.userId;
+    this.traits = config.traits;
+    this.debug = config.debug || false;
+    this.isDev = config.env === "development";
+    this.MAX_QUEUE_SIZE = config.maxQueueSize || 1000;
+    this.flushInterval = config.flushInterval || 5000;
+    this.maxRetries = config.maxRetries || 5;
+    this.retryIntervalMs = config.retryIntervalMs || 5000;
+    this.sessionTimeoutMs = config.sessionTimeoutMs || 30 * 60 * 1000;
+
     this.sessionId = this.loadOrCreateSessionId();
     this.restoreFlowContextsFromStorage();
+
     if (typeof window !== "undefined") {
-      (window as any).__onboredFlush = () => this.flush();
+      // Make flush available globally with unique identifier
+      const flushKey = `__onboredFlush_${this.projectKey}`;
+      (window as any)[flushKey] = () => this.flush();
       this.startRetryLoop();
     }
   }
 
-  async init(projectKey: string, options: OnboredOptions = {}) {
-    this.projectKey = projectKey;
-    this.traits = options.traits;
-    this.userId = options.userId;
-    this.debug = options.debug || false;
-    this.isDev = options.env === "development";
-
-    if (typeof window !== "undefined" && !this.sessionId) {
-      this.sessionId = this.loadOrCreateSessionId();
+  async flow(funnelSlug: string) {
+    // Auto-initialize if not already done
+    if (!this.isInitialized && !this.isDev) {
+      await this.initialize();
     }
 
-    if (this.debug) console.log("[Onbored] Initialized", this);
-
-    if (this.isDev) {
-      console.log("Dev mode enabled – no network requests will be sent");
-      return;
-    }
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("beforeunload", () => this.flush(true));
-      this.startFlushTimer();
-    }
-
-    try {
-      await fetch("/api/ingest/session", {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: this.sessionId,
-          projectKey: this.projectKey,
-          traits: this.traits,
-          userId: this.userId,
-          startedAt: new Date().toISOString(),
-        }),
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (this.debug) console.log("[Onbored] Session registered");
-
-      this.isInitialized = true;
-      this.queuedFlows.forEach((flow) => this.flow(flow));
-      this.queuedFlows = [];
-      this.trackPageview();
-    } catch (err) {
-      if (this.debug)
-        console.error("[Onbored] Session registration failed:", err);
-    }
-  }
-
-  async flow(id: string) {
-    console.log("🔵🟡 - flow", id);
-    console.log("🔵🟡 - isInitialized", this.isInitialized);
     if (!this.isInitialized) {
-      this.queuedFlows.push(id);
-      if (this.debug) console.log("[Onbored] Queued flow:", id);
+      this.queuedFlows.push(funnelSlug);
+      if (this.debug) console.log("[Onbored] Queued flow:", funnelSlug);
       return;
     }
 
-    if (this.flowContexts.has(id)) {
-      if (this.debug) console.warn(`[Onbored] Flow ${id} already exists`);
+    if (this.flowContexts.has(funnelSlug)) {
+      if (this.debug)
+        console.warn(`[Onbored] Flow ${funnelSlug} already exists`);
       return;
     }
 
     if (this.isDev) {
-      console.log("Mock flow started:", id);
+      console.log("Mock flow started:", funnelSlug);
       return;
     }
 
@@ -146,7 +131,7 @@ class Onbored {
       body: JSON.stringify({
         sessionId: this.sessionId,
         projectKey: this.projectKey,
-        flowId: id,
+        funnelSlug,
         startedAt: new Date().toISOString(),
       }),
       headers: { "Content-Type": "application/json" },
@@ -155,11 +140,12 @@ class Onbored {
       .then((data: { status: string; flowId: string }) => {
         if (this.debug) console.log("[Onbored] Flow registered", data);
         this.capture("Flow Started", { options: { flowId: data.flowId } });
-        this.flowContexts.set(id, {
+        this.flowContexts.set(funnelSlug, {
           id: data.flowId,
           startedAt: Date.now(),
           status: "started",
         });
+        this.activeFlowSlug = funnelSlug;
         this.trackingPageviewsForFlows.add(data.flowId);
       })
       .catch((err) => {
@@ -167,77 +153,71 @@ class Onbored {
           console.error("[Onbored] Flow registration failed:", err);
       });
     this.saveFlowContextsToStorage();
-    // ✅ Only this capture
-    // const payload = this.capture(
-    //   "Flow Started",
-    //   {
-    //     options: { flow: id },
-    //   },
-    //   false // do not queue
-    // );
-
-    // // ✅ And only this manual flush
-    // fetch("/api/ingest", {
-    //   method: "POST",
-    //   body: JSON.stringify([payload]),
-    //   headers: { "Content-Type": "application/json" },
-    // })
-    //   .then(() => {
-    //     if (this.debug) console.log("[Onbored] Flow Started event flushed");
-    //   })
-    //   .catch((err) => {
-    //     if (this.debug)
-    //       console.error("[Onbored] Failed to flush Flow Started event:", err);
-    //   });
   }
 
-  step(stepName: string, options: { flowId: string } & Record<string, any>) {
-    const context = this.getFlowContext(options.flowId);
+  step(
+    stepName: string,
+    options: { funnelSlug: string } & Record<string, any>
+  ) {
+    const context = this.getFlowContext(options.funnelSlug);
 
     if (!context) return;
 
     this.capture("Step Completed", {
       step: stepName,
-      options,
+      options: {
+        ...options,
+        flowId: context.id,
+        funnelSlug: options.funnelSlug,
+      },
     });
 
     if (this.debug) {
       console.log(
-        `[Onbored] Step started: ${stepName} (flow: ${options.flowId})`
+        `[Onbored] Step started: ${stepName} (flow: ${options.funnelSlug})`
       );
     }
   }
 
-  skip(stepName: string, options: { flowId: string } & Record<string, any>) {
-    const context = this.getFlowContext(options.flowId);
+  skip(
+    stepName: string,
+    options: { funnelSlug: string } & Record<string, any>
+  ) {
+    const context = this.getFlowContext(options.funnelSlug);
 
     if (!context) return;
 
     this.capture("Step Abandoned", {
       step: stepName,
-      options,
+      options: {
+        ...options,
+        flowId: context.id,
+        funnelSlug: options.funnelSlug,
+      },
     });
   }
 
-  completed(options: { flowId: string } & Record<string, any>) {
-    const context = this.getFlowContext(options.flowId);
+  completed(options: { funnelSlug: string } & Record<string, any>) {
+    const context = this.getFlowContext(options.funnelSlug);
 
     if (!context) return;
 
     this.capture("Flow Completed", {
       options: {
         ...options,
-        flowId: options.flowId,
+        flowId: context.id,
+        funnelSlug: options.funnelSlug,
       },
     });
 
     if (this.debug) {
       console.log("[Onbored] Flow completed:", {
-        flowId: options.flowId,
+        funnelSlug: options.funnelSlug,
+        flowId: context.id,
       });
     }
 
-    this.flowContexts.set(options.flowId, {
+    this.flowContexts.set(options.funnelSlug, {
       id: context.id,
       startedAt: context.startedAt,
       status: "completed",
@@ -252,7 +232,7 @@ class Onbored {
     eventType: string,
     data: {
       step?: string;
-      options?: { flowId?: string } & Record<string, any>;
+      options?: { flowId?: string; funnelSlug?: string } & Record<string, any>;
       result?: string;
     },
     enqueue: boolean = true
@@ -264,6 +244,7 @@ class Onbored {
       options: {
         ...data.options,
         flowId: data.options?.flowId,
+        funnelSlug: data.options?.funnelSlug,
       },
       result: data.result,
       traits: this.traits,
@@ -286,6 +267,14 @@ class Onbored {
       eventPayloadSchema.parse(payload);
 
       if (enqueue) {
+        // Check queue size limit
+        if (this.eventQueue.length >= this.MAX_QUEUE_SIZE) {
+          console.warn(
+            `[Onbored] Queue full (${this.MAX_QUEUE_SIZE}), dropping oldest event`
+          );
+          this.eventQueue.shift(); // Remove oldest event
+        }
+
         this.eventQueue.push(payload);
         if (this.debug) console.log("☢️ - [Onbored] Captured:", payload);
       }
@@ -298,29 +287,11 @@ class Onbored {
   }
 
   private retryQueue: RetryEvent[] = [];
-  private retryIntervalMs = 5000;
 
   private startRetryLoop() {
     // Start the retry loop that checks for retryable events
     setInterval(() => this.flushRetryQueue(), this.retryIntervalMs);
   }
-
-  // private async reportToAxiom(type: string, payload: any) {
-  //   try {
-  //     await axiom.ingest("onbored-sdk", [
-  //       {
-  //         type,
-  //         timestamp: new Date().toISOString(),
-  //         payload,
-  //         sessionId: this.sessionId,
-  //         url: typeof window !== "undefined" ? window.location.href : "",
-  //       },
-  //     ]);
-  //   } catch (err) {
-  //     console.log("Axiom error", err);
-  //   }
-  // }
-
   private flushingRetry = false;
 
   private async flushRetryQueue() {
@@ -391,17 +362,17 @@ class Onbored {
       sessionId: this.sessionId,
       flows: Array.from(this.flowContexts.entries()),
     });
-    sessionStorage.setItem("__onbored_flow_contexts", raw);
+    sessionStorage.setItem(this.getFlowContextsStorageKey(), raw);
   }
 
   private restoreFlowContextsFromStorage() {
     if (typeof window === "undefined") return;
-    const raw = sessionStorage.getItem("__onbored_flow_contexts");
+    const raw = sessionStorage.getItem(this.getFlowContextsStorageKey());
     if (!raw) return;
 
     try {
       const parsed = JSON.parse(raw);
-      if (parsed.sessionId !== this.sessionId) return; // session changed
+      if (parsed.sessionId !== this.sessionId) return;
 
       this.flowContexts = new Map(parsed.flows);
       if (this.debug)
@@ -427,39 +398,101 @@ class Onbored {
   private flowContexts = new Map<
     string,
     {
-      id: string; // ✅ new
+      id: string;
       startedAt: number;
       status?: "started" | "completed" | "abandoned";
+      lastVisitedPath?: string;
     }
   >();
 
   private getFlowContext(
-    flowId: string
+    funnelSlug: string
   ): { id: string; startedAt: number; status?: string } | null {
-    const context = this.flowContexts.get(flowId);
+    const context = this.flowContexts.get(funnelSlug);
     if (!context) {
-      console.warn(`[Onbored] No context for flow: "${flowId}"`);
+      console.warn(`[Onbored] No context for flow: "${funnelSlug}"`);
       return null;
     }
     return context;
   }
 
-  private trackPageview() {
-    if (typeof window === "undefined") {
-      console.warn("[Onbored - trackPageview] No window object found");
-      return;
-    }
+  private trackPageview = () => {
+    if (typeof window === "undefined") return;
 
     const flowIds = Array.from(this.trackingPageviewsForFlows);
+    const pageViewOptions: Record<string, any> = {
+      path: window.location.pathname,
+      title: document.title,
+    };
 
-    this.capture("Page View", {
-      options: {
-        path: window.location.pathname,
-        title: document.title,
-        // @TODO: Add support for multiple flows
-        ...(flowIds.length > 0 && { flowId: flowIds[0] }),
-      },
-    });
+    if (flowIds.length > 0) {
+      // @TODO: Add support for multiple flows
+      pageViewOptions.flowId = flowIds[0];
+    }
+
+    this.capture("Page View", { options: pageViewOptions });
+  };
+
+  private enableAutoPageviewTracking(): void {
+    if (typeof window === "undefined") return;
+
+    // 1. Capture back/forward
+    window.addEventListener("popstate", this.trackPageview);
+
+    // 2. Patch pushState/replaceState
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+
+    const patched =
+      (method: any, orig: any) =>
+      (...args: any[]) => {
+        const result = orig.apply(this, args);
+
+        setTimeout(() => {
+          const path = window.location.pathname;
+
+          const ctx = this.activeFlowSlug
+            ? this.flowContexts.get(this.activeFlowSlug)
+            : null;
+          if (ctx) {
+            const last = ctx.lastVisitedPath;
+            if (last && path !== last) {
+              this.capture("Page View", {
+                options: {
+                  from: last,
+                  to: path,
+                  flowId: ctx.id,
+                  funnelSlug: this.activeFlowSlug,
+                  path: window.location.pathname,
+                  title: document.title,
+                },
+              });
+            }
+            ctx.lastVisitedPath = path;
+          }
+
+          this.saveFlowContextsToStorage();
+          this.trackPageview();
+        }, 0);
+
+        return result;
+      };
+
+    history.pushState = patched("pushState", origPush);
+    history.replaceState = patched("replaceState", origReplace);
+
+    if (this.debug) console.log("[Onbored] SPA route change tracking enabled");
+  }
+  private getSessionStorageKey(): string {
+    return `__onbored_session_id_${this.projectKey}`;
+  }
+
+  private getActivityStorageKey(): string {
+    return `__onbored_last_activity_${this.projectKey}`;
+  }
+
+  private getFlowContextsStorageKey(): string {
+    return `__onbored_flow_contexts_${this.projectKey}`;
   }
 
   private loadOrCreateSessionId(): string {
@@ -467,20 +500,21 @@ class Onbored {
 
     const now = Date.now();
     const lastActivity = parseInt(
-      localStorage.getItem(ACTIVITY_STORAGE_KEY) || "0",
+      localStorage.getItem(this.getActivityStorageKey()) || "0",
       10
     );
-    const existingSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
-    const isExpired = !lastActivity || now - lastActivity > SESSION_TIMEOUT_MS;
+    const existingSessionId = localStorage.getItem(this.getSessionStorageKey());
+    const isExpired =
+      !lastActivity || now - lastActivity > this.sessionTimeoutMs;
 
     if (!existingSessionId || isExpired) {
       const newId = uuidv4();
-      localStorage.setItem(SESSION_STORAGE_KEY, newId);
-      localStorage.setItem(ACTIVITY_STORAGE_KEY, now.toString());
+      localStorage.setItem(this.getSessionStorageKey(), newId);
+      localStorage.setItem(this.getActivityStorageKey(), now.toString());
       return newId;
     }
 
-    localStorage.setItem(ACTIVITY_STORAGE_KEY, now.toString());
+    localStorage.setItem(this.getActivityStorageKey(), now.toString());
     return existingSessionId;
   }
 
@@ -529,7 +563,79 @@ class Onbored {
       console.groupEnd();
     }
   }
+
+  destroy() {
+    // Clear timers
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+    }
+
+    // Clear retry queue
+    this.retryQueue = [];
+
+    // Remove global flush function
+    if (typeof window !== "undefined") {
+      const flushKey = `__onboredFlush_${this.projectKey}`;
+      delete (window as any)[flushKey];
+    }
+
+    // Remove event listeners
+    if (typeof window !== "undefined") {
+      window.removeEventListener("beforeunload", () => this.flush(true));
+    }
+
+    // Clear queues
+    this.eventQueue = [];
+    this.queuedFlows = [];
+    this.trackingPageviewsForFlows.clear();
+    this.flowContexts.clear();
+
+    if (this.debug) console.log("[Onbored] Instance destroyed");
+  }
+
+  private async initialize() {
+    if (this.isInitialized) return;
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", () => this.flush(true));
+      this.startFlushTimer();
+    }
+
+    try {
+      await fetch("/api/ingest/session", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: this.sessionId,
+          projectKey: this.projectKey,
+          traits: this.traits,
+          userId: this.userId,
+          startedAt: new Date().toISOString(),
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (this.debug) console.log("[Onbored] Session registered");
+
+      this.isInitialized = true;
+      this.queuedFlows.forEach((flow) => this.flow(flow));
+      this.queuedFlows = [];
+      this.trackPageview();
+      this.enableAutoPageviewTracking();
+    } catch (err) {
+      if (this.debug)
+        console.error("[Onbored] Session registration failed:", err);
+    }
+  }
 }
 
-const onbored = new Onbored();
-export default onbored;
+export { Onbored };
+export type { OnboredConfig, OnboredOptions };
+
+// Optionally provide a default instance for backward compatibility
+const defaultOnbored = new Onbored({
+  projectKey: "",
+  debug: false,
+  env: "production",
+});
+
+export default defaultOnbored;

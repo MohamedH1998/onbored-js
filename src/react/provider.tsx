@@ -1,44 +1,82 @@
-import React, { useEffect } from "react";
-import onbored from "../onbored";
+import React, { createContext, useContext, useEffect, useRef } from "react";
+import { Onbored, OnboredConfig } from "../onbored";
 
-type OnBoredOptions = {
-  userId?: string;
-  traits?: Record<string, any>;
-  debug?: boolean;
+type OnBoredContextValue = {
+  client: Onbored | null;
+  isInitialized: boolean;
 };
 
+const OnBoredContext = createContext<OnBoredContextValue>({
+  client: null,
+  isInitialized: false,
+});
+
 type OnBoredProviderProps = {
-  client?: typeof onbored;
-  projectKey?: string;
-  options?: OnBoredOptions;
+  config: OnboredConfig;
   children: React.ReactNode;
 };
 
 export function OnBoredProvider({
   children,
-  client,
-  projectKey,
-  options,
+  config,
 }: OnBoredProviderProps) {
+  const clientRef = useRef<Onbored | null>(null);
+  const [isInitialized, setIsInitialized] = React.useState(false);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       console.warn("[OnBoredProvider] No window object found");
       return;
     }
 
-    if (client) {
-      console.log("[OnBoredProvider] Using external client");
+    if (!config.projectKey) {
+      console.warn("[OnBoredProvider] Missing projectKey in config");
       return;
     }
 
-    if (!projectKey) {
-      console.warn("[OnBoredProvider] Missing projectKey");
-      return;
+    try {
+      // Create new instance
+      const client = new Onbored(config);
+      clientRef.current = client;
+      setIsInitialized(true);
+      
+      console.log("[OnBoredProvider] Initialized with", { 
+        projectKey: config.projectKey, 
+        debug: config.debug 
+      });
+    } catch (error) {
+      console.error("[OnBoredProvider] Failed to initialize:", error);
     }
 
-    onbored.init(projectKey, options || {});
-    console.log("[OnBoredProvider] Initialized with", { projectKey, options });
-  }, [client, projectKey, options]);
+    // Cleanup on unmount
+    return () => {
+      if (clientRef.current) {
+        clientRef.current.destroy();
+        clientRef.current = null;
+        setIsInitialized(false);
+      }
+    };
+  }, [config.projectKey]); // Only recreate if projectKey changes
 
-  return <>{children}</>;
+  const contextValue: OnBoredContextValue = {
+    client: clientRef.current,
+    isInitialized,
+  };
+
+  return (
+    <OnBoredContext.Provider value={contextValue}>
+      {children}
+    </OnBoredContext.Provider>
+  );
+}
+
+// Hook to access the Onbored client
+export function useOnbored() {
+  const context = useContext(OnBoredContext);
+  
+  if (context === undefined) {
+    throw new Error("useOnbored must be used within an OnBoredProvider");
+  }
+  
+  return context;
 }
