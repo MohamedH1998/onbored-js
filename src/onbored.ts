@@ -79,6 +79,7 @@ class Onbored {
   private retryIntervalMs: number;
   private sessionTimeoutMs: number;
   private activeFlowSlug?: string;
+  private queuedViewEvents: Array<{ stepName: string; funnelSlug: string }> = [];
 
   constructor(config: OnboredConfig) {
     this.projectKey = config.projectKey;
@@ -472,7 +473,6 @@ class Onbored {
           }
 
           this.saveFlowContextsToStorage();
-          this.trackPageview();
         }, 0);
 
         return result;
@@ -483,6 +483,92 @@ class Onbored {
 
     if (this.debug) console.log("[Onbored] SPA route change tracking enabled");
   }
+
+  private viewStep(
+    stepName: string,
+    options: { funnelSlug: string } & Record<string, any>
+  ) {
+    console.log("🔵🔵🔵🔵🔵 - viewStep", stepName, options);
+    
+    // Check if flow is initialized
+    if (!this.isInitialized && !this.isDev) {
+      this.queuedViewEvents.push({ stepName, funnelSlug: options.funnelSlug });
+      if (this.debug) console.log("[Onbored] Queued view event:", { stepName, funnelSlug: options.funnelSlug });
+      return;
+    }
+    
+    const context = this.getFlowContext(options.funnelSlug);
+    if (!context) return;
+    
+    this.capture("Step Viewed", {
+      step: stepName,
+      options: {
+        ...options,
+        flowId: context.id,
+        funnelSlug: options.funnelSlug,
+      },
+    });
+
+    if (this.debug) {
+      console.log(
+        `[Onbored] Step viewed: ${stepName} (flow: ${options.funnelSlug})`
+      );
+    }
+  }
+
+  private enableStepViewTracking(): void {
+    if (typeof window === "undefined") return;
+
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+
+          const el = entry.target as HTMLElement;
+          const stepName = el.getAttribute("data-onbored-step");
+          const funnelSlug = el.getAttribute("data-onbored-funnel");
+
+          if (stepName && funnelSlug) {
+            this.viewStep(stepName, { funnelSlug });
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    const observed = new WeakSet<Element>();
+
+    const observeMatchingElements = () => {
+      const elements = document.querySelectorAll<HTMLElement>(
+        "[data-onbored-step][data-onbored-funnel]"
+      );
+
+      elements.forEach((el) => {
+        if (!observed.has(el)) {
+          intersectionObserver.observe(el);
+          observed.add(el);
+        }
+      });
+    };
+
+    // Initial pass
+    observeMatchingElements();
+
+    // Re-observe on DOM changes (SPA nav, re-renders, etc.)
+    const mutationObserver = new MutationObserver(() => {
+      observeMatchingElements();
+    });
+
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    if (this.debug) {
+      console.log("[Onbored] Step view tracking enabled (with SPA support)");
+    }
+  }
+
   private getSessionStorageKey(): string {
     return `__onbored_session_id_${this.projectKey}`;
   }
@@ -587,6 +673,7 @@ class Onbored {
     // Clear queues
     this.eventQueue = [];
     this.queuedFlows = [];
+    this.queuedViewEvents = []; // Clear queued view events
     this.trackingPageviewsForFlows.clear();
     this.flowContexts.clear();
 
@@ -619,8 +706,16 @@ class Onbored {
       this.isInitialized = true;
       this.queuedFlows.forEach((flow) => this.flow(flow));
       this.queuedFlows = [];
+      
+      // Process queued view events
+      this.queuedViewEvents.forEach(({ stepName, funnelSlug }) => {
+        this.viewStep(stepName, { funnelSlug });
+      });
+      this.queuedViewEvents = [];
+      
       this.trackPageview();
       this.enableAutoPageviewTracking();
+      this.enableStepViewTracking();
     } catch (err) {
       if (this.debug)
         console.error("[Onbored] Session registration failed:", err);
