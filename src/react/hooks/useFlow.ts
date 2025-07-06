@@ -6,7 +6,7 @@ type StepOptions = Record<string, any>;
 export function useFlow(slug: string) {
   useEffect(() => {
     if (typeof window === "undefined") return;
-    
+
     const checkInit = () => {
       try {
         onbored._get();
@@ -15,7 +15,7 @@ export function useFlow(slug: string) {
         setTimeout(checkInit, 100);
       }
     };
-    
+
     checkInit();
   }, [slug]);
 

@@ -1,12 +1,19 @@
-# Onbored SDK Documentation
+# Onbored SDK
 
-The Onbored SDK is a plug-and-play JavaScript library for capturing onboarding events, user journeys, and flow analytics. It's designed to help B2B SaaS products improve user activation and reduce churn with minimal setup.
+A powerful, instance-based JavaScript SDK for capturing onboarding events, user journeys, and flow analytics. Designed for multi-tenant B2B SaaS products to improve user activation and reduce churn.
 
----
+## ✨ Features
 
-## Overview
+- **Instance-Based Architecture** - Support for multiple teams/projects
+- **React Integration** - Hooks and providers for seamless React integration
+- **Flow Tracking** - Complete flow lifecycle management (start, step, skip, complete)
+- **Session Management** - Auto-generated sessions with timeout handling
+- **Offline Support** - Event queuing with retry logic and exponential backoff
+- **Type Safety** - Full TypeScript support with Zod validation
+- **Development Mode** - Mock mode for local development
+- **Multi-Tenant Ready** - Isolated instances for different teams
 
-The SDK allows you to:
+## 🚀 Quick Start
 
 - Track onboarding flows, steps, skips, and completions
 - Auto-generate and manage sessions
@@ -19,34 +26,33 @@ The SDK allows you to:
 ## Installation
 
 ```bash
-# npm
 npm install @onbored/sdk
-
-# yarn
+# or
 yarn add @onbored/sdk
-
-# pnpm
+# or
 pnpm add @onbored/sdk
 ```
 
----
-
-## Quick Start
-
-### Initialize the SDK
+### Basic Usage
 
 ```typescript
-import onbored from "@onbored/sdk";
+import { Onbored } from "@onbored/sdk";
 
 onbored.init({
   projectKey: "pk_live_1234567890abcdef",
   user_id: "user_123",
   user_metadata: { plan: "premium" },
   debug: true,
+  env: "production",
 });
+
+// Track a flow
+onbored.flow("welcome-flow");
+onbored.step("profile-setup", { funnelSlug: "welcome-flow", method: "email" });
+onbored.completed({ funnelSlug: "welcome-flow", result: "success" });
 ```
 
-**Initialization Options:**
+### React Integration
 
 | Option           | Type                            | Description                               |
 | ---------------- | ------------------------------- | ----------------------------------------- |
@@ -59,7 +65,20 @@ onbored.init({
 | `storage`        | `Storage`                       | Custom storage configuration              |
 | `global`         | `GlobalOptions`                 | Custom fetch and headers                  |
 
-### Tracking Flows and Events
+function App() {
+  return (
+    <OnBoredProvider
+      config={{
+        projectKey: <your-product-key>,
+        userId: "user_123",
+        debug: true,
+        env: "production",
+      }}
+    >
+      <WelcomeFlow />
+    </OnBoredProvider>
+  );
+}
 
 ```typescript
 // Start a flow
@@ -209,7 +228,7 @@ onbored.init({
 });
 ```
 
----
+  if (!isReady) return <div>Loading...</div>;
 
 ## Core Concepts
 
@@ -245,9 +264,9 @@ interface EventPayload {
 }
 ```
 
-Payloads are validated using Zod to ensure integrity.
+## 📚 API Reference
 
----
+### Core SDK
 
 ## Flow Management
 
