@@ -41,5 +41,6 @@
     "onboarding",
     "analytics"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@10.9.0"
 }

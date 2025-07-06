@@ -1,76 +1,56 @@
 import { useEffect, useCallback } from "react";
-import { useOnbored } from "../provider";
+import { onbored } from "../../lib";
 
 type StepOptions = Record<string, any>;
 
-export function useFlow(funnelSlug: string) {
-  const { client, isInitialized } = useOnbored();
-
+export function useFlow(slug: string) {
   useEffect(() => {
-    if (typeof window === "undefined" || !client || !isInitialized) return;
+    if (typeof window === "undefined") return;
 
-    try {
-      void client.flow(funnelSlug);
-    } catch (error) {
-      console.error(`[useFlow] Failed to start flow ${funnelSlug}:`, error);
-    }
-  }, [client, isInitialized, funnelSlug]);
+    const checkInit = () => {
+      try {
+        onbored._get();
+        onbored.flow(slug);
+      } catch (error) {
+        setTimeout(checkInit, 100);
+      }
+    };
+
+    checkInit();
+  }, [slug]);
 
   const step = useCallback(
     (stepName: string, options: StepOptions = {}) => {
-      if (!client) {
-        console.warn("[useFlow] Client not initialized");
-        return;
-      }
-
       try {
-        client.step(stepName, { funnelSlug: funnelSlug, ...options });
+        onbored.step(stepName, { slug, ...options });
       } catch (error) {
-        console.error(`[useFlow] Failed to record step ${stepName}:`, error);
+        console.warn("[useFlow] SDK not initialized yet:", error);
       }
     },
-    [client, funnelSlug]
+    [slug]
   );
 
   const skip = useCallback(
     (stepName: string, options: StepOptions = {}) => {
-      if (!client) {
-        console.warn("[useFlow] Client not initialized");
-        return;
-      }
-
       try {
-        client.skip(stepName, { funnelSlug: funnelSlug, ...options });
+        onbored.skip(stepName, { slug, ...options });
       } catch (error) {
-        console.error(`[useFlow] Failed to record skip ${stepName}:`, error);
+        console.warn("[useFlow] SDK not initialized yet:", error);
       }
     },
-    [client, funnelSlug]
+    [slug]
   );
 
   const complete = useCallback(
     (options: StepOptions = {}) => {
-      if (!client) {
-        console.warn("[useFlow] Client not initialized");
-        return;
-      }
-
       try {
-        client.completed({ funnelSlug: funnelSlug, ...options });
+        onbored.completed({ slug, ...options });
       } catch (error) {
-        console.error(
-          `[useFlow] Failed to complete flow ${funnelSlug}:`,
-          error
-        );
+        console.warn("[useFlow] SDK not initialized yet:", error);
       }
     },
-    [client, funnelSlug]
+    [slug]
   );
 
-  return {
-    step,
-    skip,
-    complete,
-    isReady: !!client && isInitialized,
-  };
+  return { step, skip, complete };
 }

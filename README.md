@@ -15,7 +15,15 @@ A powerful, instance-based JavaScript SDK for capturing onboarding events, user 
 
 ## 🚀 Quick Start
 
-### Installation
+- Track onboarding flows, steps, skips, and completions
+- Auto-generate and manage sessions
+- Queue and retry events with offline support
+- Initialize quickly with a project key
+- Use React hooks and provider for seamless integration
+
+---
+
+## Installation
 
 ```bash
 npm install @onbored/sdk
@@ -30,11 +38,10 @@ pnpm add @onbored/sdk
 ```typescript
 import { Onbored } from "@onbored/sdk";
 
-// Create an instance
-const onbored = new Onbored({
-  projectKey: <your-product-key>,
-  userId: "user_123",
-  traits: { plan: "premium", team: "engineering" },
+onbored.init({
+  projectKey: "pk_live_1234567890abcdef",
+  user_id: "user_123",
+  user_metadata: { plan: "premium" },
   debug: true,
   env: "production",
 });
@@ -47,8 +54,16 @@ onbored.completed({ funnelSlug: "welcome-flow", result: "success" });
 
 ### React Integration
 
-```tsx
-import { OnBoredProvider, useFlow } from "@onbored/sdk/react";
+| Option           | Type                            | Description                               |
+| ---------------- | ------------------------------- | ----------------------------------------- |
+| `projectKey`     | `string`                        | Required project key                      |
+| `user_id`        | `string`                        | Optional user identifier                  |
+| `user_metadata`  | `Record<string, any>`           | Optional user metadata (e.g., plan, role) |
+| `traits`         | `Record<string, any>`           | Optional user traits                      |
+| `debug`          | `boolean`                       | Enables debug mode                        |
+| `env`            | `"development" \| "production"` | Enables development mode behavior         |
+| `storage`        | `Storage`                       | Custom storage configuration              |
+| `global`         | `GlobalOptions`                 | Custom fetch and headers                  |
 
 function App() {
   return (
@@ -65,22 +80,187 @@ function App() {
   );
 }
 
-function WelcomeFlow() {
-  const { step, skip, complete, isReady } = useFlow("welcome-flow");
+```typescript
+// Start a flow
+onbored.flow("Onboarding");
 
-  if (!isReady) return <div>Loading...</div>;
+// Track step completion
+onbored.step("Invite Team", { slug: "Onboarding" });
+
+// Record a skipped step
+onbored.skip("Billing Info", { slug: "Onboarding" });
+
+// Mark flow as completed
+onbored.completed({ slug: "Onboarding" });
+```
+
+---
+
+## React Integration
+
+### Using the Provider
+
+The `OnboredProvider` automatically initializes the SDK and provides context to child components:
+
+```tsx
+import { OnboredProvider } from "@onbored/sdk/react";
+
+function App() {
+  return (
+    <OnboredProvider
+      config={{
+        projectKey: "pk_live_1234567890abcdef",
+        user_id: "user_123",
+        user_metadata: { plan: "premium" },
+        debug: true,
+      }}
+    >
+      <YourApp />
+    </OnboredProvider>
+  );
+}
+```
+
+### useFlow Hook
+
+The `useFlow` hook provides a convenient way to track flow events within React components:
+
+```tsx
+import { useFlow } from "@onbored/sdk/react";
+
+function OnboardingFlow() {
+  const { step, skip, complete } = useFlow("Onboarding");
+
+  const handleProfileComplete = () => {
+    step("Complete Profile", { method: "email" });
+  };
+
+  const handleSkipTeam = () => {
+    skip("Invite Team", { reason: "Solo user" });
+  };
+
+  const handleFinish = () => {
+    complete({ totalSteps: 5 });
+  };
 
   return (
     <div>
-      <button onClick={() => step("button-clicked")}>Get Started</button>
-      <button onClick={() => skip("team-invite", { reason: "solo-user" })}>
-        Skip Team Setup
-      </button>
-      <button onClick={() => complete({ result: "success" })}>
-        Complete Setup
-      </button>
+      <button onClick={handleProfileComplete}>Complete Profile</button>
+      <button onClick={handleSkipTeam}>Skip Team Invite</button>
+      <button onClick={handleFinish}>Finish Onboarding</button>
     </div>
   );
+}
+```
+
+**Hook Methods:**
+
+| Method    | Description                    | Parameters                                    |
+| --------- | ------------------------------ | --------------------------------------------- |
+| `step()`  | Track step completion         | `(stepName: string, options?: Record<string, any>)` |
+| `skip()`  | Record skipped step           | `(stepName: string, options?: Record<string, any>)` |
+| `complete()` | Mark flow as completed     | `(options?: Record<string, any>)`            |
+
+---
+
+## Advanced Usage
+
+### Direct Class Instantiation
+
+For advanced use cases, you can create multiple instances of the Onbored client:
+
+```typescript
+import { OnboredClient } from "@onbored/sdk/lib";
+
+// Create a custom client instance
+const customClient = new OnboredClient("pk_live_1234567890abcdef", {
+  user_id: "user_123",
+  user_metadata: { plan: "premium" },
+  debug: true,
+  env: "development",
+  storage: {
+    sessionStorageKey: "custom-session-key",
+    activityStorageKey: "custom-activity-key",
+    flowContextStorageKey: "custom-flow-context-key",
+  },
+  global: {
+    headers: {
+      "X-Custom-Header": "value",
+    },
+  },
+});
+
+// Use the custom client
+await customClient.flow("Custom Flow");
+await customClient.step("Custom Step", { slug: "Custom Flow" });
+await customClient.completed({ slug: "Custom Flow" });
+```
+
+### Custom Storage Configuration
+
+```typescript
+onbored.init({
+  projectKey: "pk_live_1234567890abcdef",
+  storage: {
+    sessionStorageKey: "my-app-session",
+    activityStorageKey: "my-app-activity",
+    flowContextStorageKey: "my-app-flow-context",
+  },
+});
+```
+
+### Custom Global Options
+
+```typescript
+onbored.init({
+  projectKey: "pk_live_1234567890abcdef",
+  global: {
+    headers: {
+      "Authorization": "Bearer token",
+      "X-Custom-Header": "value",
+    },
+    // Custom fetch implementation
+    fetch: (url, options) => {
+      // Custom fetch logic
+      return fetch(url, options);
+    },
+  },
+});
+```
+
+  if (!isReady) return <div>Loading...</div>;
+
+## Core Concepts
+
+| Method        | Description                                |
+| ------------- | ------------------------------------------ |
+| `flow()`      | Starts a named flow                        |
+| `step()`      | Tracks a step completion                   |
+| `skip()`      | Records a skipped step                     |
+| `completed()` | Marks a flow as completed                  |
+| `capture()`   | Manually capture custom events             |
+| `context()`   | Merges additional user traits              |
+| `reset()`     | Regenerates the session and clears context |
+| `destroy()`   | Cleanup resources and event listeners      |
+
+---
+
+## Event Payload Schema
+
+```typescript
+interface EventPayload {
+  eventType: string;
+  slug?: string;
+  flowId?: string;
+  step?: string;
+  options: Record<string, any>;
+  result?: string;
+  traits?: Record<string, any>;
+  sessionId: string;
+  timestamp: string; // ISO 8601 format
+  projectKey: string;
+  url: string;
+  referrer?: string;
 }
 ```
 
@@ -88,258 +268,161 @@ function WelcomeFlow() {
 
 ### Core SDK
 
-#### `new Onbored(config: OnboredConfig)`
+## Flow Management
 
-Creates a new Onbored instance.
+The SDK automatically manages flow contexts:
 
-```typescript
-interface OnboredConfig {
-  projectKey: string; // Required: Your project key
-  userId?: string; // Optional: User identifier
-  traits?: Record<string, any>; // Optional: User metadata
-  debug?: boolean; // Optional: Enable debug mode
-  env?: "development" | "production"; // Optional: Environment
-  flushInterval?: number; // Optional: Flush interval (default: 5000ms)
-  maxQueueSize?: number; // Optional: Max queue size (default: 1000)
-  maxRetries?: number; // Optional: Max retries (default: 5)
-  retryIntervalMs?: number; // Optional: Retry interval (default: 5000ms)
-  sessionTimeoutMs?: number; // Optional: Session timeout (default: 30min)
-}
-```
+- Each flow gets a unique server-generated ID
+- Flow contexts are persisted in sessionStorage
+- Page views are automatically tracked for active flows
+- Flow completion triggers immediate event flushing
+- Automatic step view tracking with Intersection Observer
 
-#### Instance Methods
+---
 
-| Method                        | Description              | Example                                                                       |
-| ----------------------------- | ------------------------ | ----------------------------------------------------------------------------- |
-| `flow(funnelSlug: string)`    | Start a new flow         | `onbored.flow('welcome-flow')`                                                |
-| `step(name: string, options)` | Record a step completion | `onbored.step('profile-setup', { funnelSlug: 'welcome-flow' })`               |
-| `skip(name: string, options)` | Record a skipped step    | `onbored.skip('team-invite', { funnelSlug: 'welcome-flow', reason: 'solo' })` |
-| `completed(options)`          | Mark flow as completed   | `onbored.completed({ funnelSlug: 'welcome-flow', result: 'success' })`        |
-| `capture(eventType, data)`    | Capture custom events    | `onbored.capture('Button Click', { options: { button: 'cta' } })`             |
-| `context(traits)`             | Update user context      | `onbored.context({ plan: 'pro', role: 'admin' })`                             |
-| `reset()`                     | Reset session and traits | `onbored.reset()`                                                             |
-| `destroy()`                   | Clean up instance        | `onbored.destroy()`                                                           |
+## Retry and Flush Logic
 
-### React Components & Hooks
+- Events are flushed every 5 seconds or on page unload
+- Failed flushes are retried with exponential backoff (up to 5 attempts)
+- Events are queued in memory until successfully sent
+- Flow completion events are flushed immediately
+- Automatic cleanup of resources and event listeners
 
-#### `<OnBoredProvider>`
+---
 
-Provides Onbored context to your React app.
+## Development Mode
 
-```tsx
-<OnBoredProvider config={onboredConfig}>
-  <YourApp />
-</OnBoredProvider>
-```
+When `env: "development"` is set:
 
-#### `useFlow(funnelSlug: string)`
+- Events are not sent to the server
+- All actions are logged to the console
+- Useful for local development and debugging
+- Global flush function available at `window.__onboredFlush`
 
-Hook for managing flow lifecycle.
+---
 
-```tsx
-const { step, skip, complete, isReady } = useFlow("welcome-flow");
+## Session Handling
 
-// Returns:
-// - step(name, options): Record step completion
-// - skip(name, options): Record step skip
-// - complete(options): Mark flow complete
-// - isReady: boolean - Whether client is initialized
-```
+- Sessions expire after 30 minutes of inactivity
+- Session ID is stored in localStorage
+- Page views are auto-captured on `init()`
+- Flow contexts are restored from sessionStorage on page reload
+- Automatic session regeneration on expiration
 
-#### `useOnboredClient()`
+---
 
-Hook for direct client access and advanced operations.
+## Utilities
 
-```tsx
-const { client, capture, context, reset, flush, isReady } = useOnboredClient();
+### `context(traits: Record<string, any>)`
 
-// Returns:
-// - client: Onbored instance
-// - capture(eventType, data): Capture custom events
-// - context(traits): Update user context
-// - reset(): Reset session
-// - flush(): Manually flush events
-// - isReady: boolean
-```
-
-#### `usePageView(options?)`
-
-Hook for tracking page views.
-
-```tsx
-usePageView({
-  path: "/dashboard",
-  title: "Dashboard",
-  funnelSlug: "welcome-flow",
-  additionalData: { section: "main" },
-});
-```
-
-## 🔧 Configuration
-
-### Environment Modes
-
-#### Production Mode
+Merge additional context traits into the current session.
 
 ```typescript
-const onbored = new Onbored({
-  projectKey: "pk_live_123",
-  env: "production",
-});
+onbored.context({ companySize: "11-50", role: "admin" });
 ```
 
-#### Development Mode
+### `reset()`
+
+Reset the session and clear all user traits.
 
 ```typescript
-const onbored = new Onbored({
-  projectKey: "pk_live_123",
-  env: "development",
-  debug: true,
-});
-// Events are logged but not sent to server
+onbored.reset();
 ```
 
-### Multi-Tenant Setup
+### `destroy()`
+
+Cleanup resources and remove event listeners.
 
 ```typescript
-// Team 1 instance
-const team1Onbored = new Onbored({
-  projectKey: "team1_project_key",
+onbored.destroy();
+```
+
+---
+
+## Full Example
+
+### Vanilla JavaScript
+
+```typescript
+// Initialize the SDK
+onbored.init({
+  projectKey: "pk_123",
+  user_id: "alice",
+  user_metadata: { plan: "premium" },
   debug: true,
 });
 
-// Team 2 instance
-const team2Onbored = new Onbored({
-  projectKey: "team2_project_key",
-  debug: false,
-});
+// Start onboarding flow
+onbored.flow("Onboarding");
 
-// React multi-tenant
-function MultiTenantApp({ teamId }: { teamId: string }) {
-  const configs = {
-    team1: { projectKey: "team1_key", debug: true },
-    team2: { projectKey: "team2_key", debug: false },
-  };
+// Track step completions
+onbored.step("Sign Up", { slug: "Onboarding", method: "email" });
+onbored.step("Complete Profile", { slug: "Onboarding", age: 29 });
+
+// Record a skipped step
+onbored.skip("Invite Team", { slug: "Onboarding", reason: "No team yet" });
+
+// Mark flow as completed
+onbored.completed({ slug: "Onboarding" });
+```
+
+### React Application
+
+```tsx
+import { OnboredProvider, useFlow } from "@onbored/sdk/react";
+
+function OnboardingComponent() {
+  const { step, skip, complete } = useFlow("Onboarding");
 
   return (
-    <OnBoredProvider config={configs[teamId]}>
-      <TeamApp />
-    </OnBoredProvider>
+    <div>
+      <button onClick={() => step("Sign Up", { method: "email" })}>
+        Complete Sign Up
+      </button>
+      <button onClick={() => skip("Invite Team", { reason: "Solo user" })}>
+        Skip Team Invite
+      </button>
+      <button onClick={() => complete({ totalSteps: 3 })}>
+        Finish Onboarding
+      </button>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <OnboredProvider
+      config={{
+        projectKey: "pk_live_1234567890abcdef",
+        user_id: "user_123",
+        debug: true,
+      }}
+    >
+      <OnboardingComponent />
+    </OnboredProvider>
   );
 }
 ```
 
-## 📊 Event Schema
+---
 
-All events follow this schema:
+## API Endpoints
 
-```typescript
-interface EventPayload {
-  eventType: string; // Event type (e.g., "Flow Started", "Step Completed")
-  flowId?: string; // Internal flow ID (auto-generated)
-  funnelSlug?: string; // User-provided funnel slug
-  step?: string; // Step name (for step events)
-  options: Record<string, any>; // Event-specific data
-  result?: string; // Result/outcome
-  traits?: Record<string, any>; // User traits
-  sessionId: string; // Session identifier
-  timestamp: string; // ISO 8601 timestamp
-  projectKey: string; // Project key
-  url: string; // Current URL
-  referrer?: string; // Referrer URL
-}
-```
+The SDK expects the following API endpoints:
 
-## 🔄 Event Lifecycle
+- `POST /api/ingest/session` - Register new sessions
+- `POST /api/ingest/flow` - Register new flows
+- `POST /api/ingest` - Ingest events in batch
 
-1. **Capture** - Events are captured and validated
-2. **Queue** - Events are queued in memory
-3. **Flush** - Events are sent every 5 seconds or on page unload
-4. **Retry** - Failed events are retried with exponential backoff
-5. **Drop** - Events are dropped after 5 failed attempts
+---
 
-## 🛡️ Error Handling
+## Notes
 
-The SDK includes comprehensive error handling:
+- Payloads are structured for batch sending and analytics backend ingestion
+- Debug logs are grouped for better inspection during development
+- Flow contexts are automatically managed and persisted
+- Events are validated using Zod schema before sending
+- Automatic cleanup prevents memory leaks
+- Intersection Observer tracks step visibility automatically
 
-- **Validation Errors** - Invalid payloads are logged and dropped
-- **Network Errors** - Failed requests are retried automatically
-- **Offline Support** - Events are queued when offline
-- **Graceful Degradation** - SDK continues working even with errors
-
-## 🧪 Testing
-
-### Unit Testing
-
-```typescript
-import { Onbored } from "@onbored/sdk";
-
-// Create instance in development mode
-const onbored = new Onbored({
-  projectKey: "test_key",
-  env: "development",
-});
-
-// Events are logged but not sent
-onbored.flow("test-flow");
-onbored.step("test-step", { funnelSlug: "test-flow" });
-```
-
-### Integration Testing
-
-```typescript
-// Mock the fetch API
-global.fetch = jest.fn(() =>
-  Promise.resolve({
-    ok: true,
-    json: () => Promise.resolve({ status: "success" }),
-  })
-) as jest.Mock;
-
-const onbored = new Onbored({
-  projectKey: "test_key",
-  env: "production",
-});
-```
-
-## 🔍 Debugging
-
-### Debug Mode
-
-```typescript
-const onbored = new Onbored({
-  projectKey: "pk_live_123",
-  debug: true,
-});
-
-// Console output:
-// [Onbored] Initialized
-// [Onbored] Flow registered { status: "success", flowId: "..." }
-// [Onbored] Captured: { eventType: "Flow Started", ... }
-```
-
-### Global Flush Function
-
-```typescript
-// Access flush function globally for debugging
-window.__onboredFlush_pk_live_123();
-```
-
-### React Debug
-
-```tsx
-<OnBoredProvider
-  config={{
-    projectKey: "pk_live_123",
-    debug: true,
-  }}
->
-  <App />
-</OnBoredProvider>
-```
-
-## 📦 Bundle Size
-
-- **Core SDK**: ??
-- **React Integration**: ??
-- **Tree-shakeable**: ??
+Let us know if you need documentation on backend integrations, plugin hooks, or event dashboards.
