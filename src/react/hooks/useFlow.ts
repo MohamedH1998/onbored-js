@@ -1,33 +1,55 @@
 import { useEffect, useCallback } from "react";
-import onbored from "../../onbored"; // adjust path
+import { onbored } from "../../lib";
 
 type StepOptions = Record<string, any>;
 
-export function useFlow(flowName: string) {
+export function useFlow(slug: string) {
   useEffect(() => {
     if (typeof window === "undefined") return;
-    void onbored.flow(flowName); // 🚀 starts or queues
-  }, [flowName]);
+    
+    const checkInit = () => {
+      try {
+        onbored._get();
+        onbored.flow(slug);
+      } catch (error) {
+        setTimeout(checkInit, 100);
+      }
+    };
+    
+    checkInit();
+  }, [slug]);
 
   const step = useCallback(
     (stepName: string, options: StepOptions = {}) => {
-      onbored.step(stepName, { flow: flowName, ...options });
+      try {
+        onbored.step(stepName, { slug, ...options });
+      } catch (error) {
+        console.warn("[useFlow] SDK not initialized yet:", error);
+      }
     },
-    [flowName]
+    [slug]
   );
 
   const skip = useCallback(
     (stepName: string, options: StepOptions = {}) => {
-      onbored.skip(stepName, { flow: flowName, ...options });
+      try {
+        onbored.skip(stepName, { slug, ...options });
+      } catch (error) {
+        console.warn("[useFlow] SDK not initialized yet:", error);
+      }
     },
-    [flowName]
+    [slug]
   );
 
   const complete = useCallback(
     (options: StepOptions = {}) => {
-      onbored.completed({ flow: flowName, ...options });
+      try {
+        onbored.completed({ slug, ...options });
+      } catch (error) {
+        console.warn("[useFlow] SDK not initialized yet:", error);
+      }
     },
-    [flowName]
+    [slug]
   );
 
   return { step, skip, complete };

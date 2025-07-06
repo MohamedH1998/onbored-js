@@ -1,44 +1,25 @@
+"use client";
 import React, { useEffect } from "react";
-import onbored from "../onbored";
+import { onbored } from "../lib"; // adjust path as needed
+import type { OnboredClientOptions } from "../lib/types";
 
-type OnBoredOptions = {
-  userId?: string;
-  traits?: Record<string, any>;
-  debug?: boolean;
-};
-
-type OnBoredProviderProps = {
-  client?: typeof onbored;
-  projectKey?: string;
-  options?: OnBoredOptions;
+interface OnboredProviderProps {
   children: React.ReactNode;
-};
+  config: {
+    projectKey: string;
+  } & OnboredClientOptions;
+}
 
-export function OnBoredProvider({
-  children,
-  client,
-  projectKey,
-  options,
-}: OnBoredProviderProps) {
+export function OnboredProvider({ children, config }: OnboredProviderProps) {
   useEffect(() => {
-    if (typeof window === "undefined") {
-      console.warn("[OnBoredProvider] No window object found");
-      return;
+    try {
+      onbored.init(config);
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[OnboredProvider] Failed to initialize:", err);
+      }
     }
-
-    if (client) {
-      console.log("[OnBoredProvider] Using external client");
-      return;
-    }
-
-    if (!projectKey) {
-      console.warn("[OnBoredProvider] Missing projectKey");
-      return;
-    }
-
-    onbored.init(projectKey, options || {});
-    console.log("[OnBoredProvider] Initialized with", { projectKey, options });
-  }, [client, projectKey, options]);
+  }, [config.projectKey]);
 
   return <>{children}</>;
 }

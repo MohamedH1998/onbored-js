@@ -29,6 +29,7 @@ export type FlowContext = {
   id: string;
   startedAt: number;
   status?: "started" | "completed" | "abandoned";
+  lastVisitedPath?: string;
 };
 
 // interface OnboredOptions {
@@ -40,6 +41,7 @@ export type FlowContext = {
 
 export interface EventPayload {
   eventType: string;
+  slug?: string;
   flowId?: string;
   step?: string;
   options: Record<string, any>;

@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { DEFAULT_GLOBAL_OPTIONS } from "./constants";
-import { applySettingDefaults } from "./helpers";
+import { applySettingDefaults, isValidUUID, sanitize } from "./helpers";
 import { Logger } from "./logger";
 import {
   Environment,
@@ -31,12 +31,13 @@ export class OnboredClient {
   protected flowContextStorageKey: string;
   protected flowContext: Map<string, FlowContext>;
   protected headers: Record<string, string>;
-  protected fetch: Fetch;
+  // protected fetch: Fetch;
 
-  protected isInitialized = false;
+  private initPromise: Promise<void>;
+  private isInitializing = true;
   protected retryIntervalMs = 5000;
   protected queuedFlows: string[] = [];
-  
+
   // Event queue and retry logic
   protected readonly MAX_QUEUE_SIZE = 1000;
   protected eventQueue: EventPayload[] = [];
@@ -44,6 +45,17 @@ export class OnboredClient {
   protected flushInterval: number = 5000;
   protected flushTimer?: number;
   protected flushingRetry = false;
+  private queuedViewEvents: Array<{ stepName: string; slug: string }> = [];
+  private trackingPageviewsForFlows = new Set<string>();
+
+  // Cleanup properties
+  private retryInterval?: number;
+  private intersectionObserver?: IntersectionObserver;
+  private mutationObserver?: MutationObserver;
+  private beforeUnloadHandler?: () => void;
+  private popstateHandler?: () => void;
+  private originalPushState?: typeof history.pushState;
+  private originalReplaceState?: typeof history.replaceState;
 
   /**
    * Create a new client for use in the browser.
@@ -87,16 +99,18 @@ export class OnboredClient {
     this.activityStorageKey = settings.storage.activityStorageKey ?? "";
     this.flowContextStorageKey = settings.storage.flowContextStorageKey ?? "";
     this.headers = settings.global.headers ?? {};
-    this.fetch = settings.global.fetch ?? fetch;
+    // this.fetch = settings.global.fetch ?? fetch;
 
     this.logger = new Logger("[Onbored]", this.debug ? "debug" : "info");
 
     this._restoreFlowContextFromStorage();
     this._startRetryLoop();
-    this._init();
+    this.initPromise = this._init();
 
     // Global flush function for debugging
-    (window as any).__onboredFlush = () => this._flush();
+    if (this.env === "development" && typeof window !== "undefined") {
+      (window as any).__onboredFlush = () => this._flush();
+    }
   }
 
   private async _init() {
@@ -104,14 +118,16 @@ export class OnboredClient {
 
     if (this.env === "development") {
       this.logger.info("Dev mode enabled – no network requests will be sent");
+      this.isInitializing = false;
       return;
     }
 
-    window.addEventListener("beforeunload", () => this._flush(true));
+    this.beforeUnloadHandler = () => this._flush(true);
+    window.addEventListener("beforeunload", this.beforeUnloadHandler);
     this._startFlushTimer();
 
     try {
-      await this.fetch("/api/ingest/session", {
+      await fetch("/api/ingest/session", {
         method: "POST",
         body: JSON.stringify({
           sessionId: this.sessionId,
@@ -124,12 +140,29 @@ export class OnboredClient {
       });
 
       this.logger.debug("Session registered");
+      this.isInitializing = false;
 
-      this.isInitialized = true;
+      this._trackPageView();
+      this._enableStepViewTracking();
+
       this.queuedFlows.forEach((flow) => this.flow(flow));
       this.queuedFlows = [];
+
+      // this.queuedViewEvents.forEach(({ stepName, slug }) =>
+      //   this._viewStep(stepName, { slug })
+      // );
+      // this.queuedViewEvents = [];
     } catch (err) {
       this.logger.error("Session registration failed:", err);
+      this.isInitializing = false;
+    }
+  }
+
+  private async waitForInit(): Promise<void> {
+    try {
+      return await this.initPromise;
+    } catch (error) {
+      this.logger.error("Initialization failed:", error);
     }
   }
 
@@ -157,7 +190,7 @@ export class OnboredClient {
 
     const existingSessionId = localStorage.getItem(this.sessionStorageKey);
 
-    if (!existingSessionId) {
+    if (!existingSessionId || !isValidUUID(existingSessionId)) {
       const sessionId = this._createSession();
       this._createActivity(now);
       return sessionId;
@@ -201,7 +234,10 @@ export class OnboredClient {
   }
 
   private _startRetryLoop() {
-    setInterval(() => this._flushRetryQueue(), this.retryIntervalMs);
+    this.retryInterval = window.setInterval(
+      () => this._flushRetryQueue(),
+      this.retryIntervalMs
+    );
   }
 
   private async _flushRetryQueue() {
@@ -225,7 +261,10 @@ export class OnboredClient {
               nextAttemptAt: Date.now() + Math.pow(2, nextAttempt) * 1000,
             });
           } else {
-            this.logger.warn("Max retries reached. Dropping event", event.payload);
+            this.logger.warn(
+              "Max retries reached. Dropping event",
+              event.payload
+            );
           }
         }
       }
@@ -241,7 +280,7 @@ export class OnboredClient {
     }
 
     try {
-      const response = await this.fetch("/api/ingest", {
+      const response = await fetch("/api/ingest", {
         method: "POST",
         body: JSON.stringify(payload),
         headers: this.headers,
@@ -291,11 +330,14 @@ export class OnboredClient {
     }
 
     if (this.debug) {
-      this.logger.debug("Flushing Events", payload.map((p) => ({
-        event: p.eventType,
-        step: p.step,
-        timestamp: p.timestamp,
-      })));
+      this.logger.debug(
+        "Flushing Events",
+        payload.map((p) => ({
+          event: p.eventType,
+          step: p.step,
+          timestamp: p.timestamp,
+        }))
+      );
     }
   }
 
@@ -308,92 +350,270 @@ export class OnboredClient {
     return context;
   }
 
-  // Public API methods
-  async flow(id: string) {
-    this.logger.info("🔵🟡 - flow", id);
-    this.logger.info("🔵🟡 - isInitialized", this.isInitialized);
+  private _trackPageView(): void {
+    if (typeof window === "undefined") return;
 
-    if (!this.isInitialized) {
-      this.queuedFlows.push(id);
-      this.logger.debug("Queued flow:", id);
+    this.popstateHandler = () => {
+      this.capture("Page View", {
+        options: {
+          path: sanitize(window.location.pathname),
+          title: sanitize(document.title),
+        },
+      });
+    };
+
+    window.addEventListener("popstate", this.popstateHandler);
+
+    this.originalPushState = history.pushState;
+    this.originalReplaceState = history.replaceState;
+
+    const patched =
+      (method: any, orig: any) =>
+      (...args: any[]) => {
+        const result = orig.apply(this, args);
+
+        setTimeout(() => {
+          const path = sanitize(window.location.pathname);
+          const lastPath = this._getLastPath();
+
+          this.capture("Page View", {
+            options: {
+              path,
+              title: sanitize(document.title),
+              ...(lastPath && { from: lastPath, to: path }),
+            },
+          });
+
+          // Update last path for next comparison
+          this._setLastPath(path);
+        }, 0);
+
+        return result;
+      };
+
+    history.pushState = patched("pushState", this.originalPushState);
+    history.replaceState = patched("replaceState", this.originalReplaceState);
+
+    if (this.debug)
+      this.logger.debug("[Onbored] SPA route change tracking enabled");
+  }
+
+  // Helper methods for tracking last path
+  private _getLastPath(): string | undefined {
+    return (
+      sessionStorage.getItem(`${this.flowContextStorageKey}_last_path`) ||
+      undefined
+    );
+  }
+
+  private _setLastPath(path: string): void {
+    sessionStorage.setItem(`${this.flowContextStorageKey}_last_path`, path);
+  }
+
+  private _viewStep(
+    stepName: string,
+    options: { slug: string } & Record<string, any>
+  ) {
+    // if (this.isInitializing) {
+    //   this.queuedViewEvents.push({ stepName, slug: options.slug });
+    //   if (this.debug)
+    //     this.logger.debug("[Onbored] Queued view event:", {
+    //       stepName,
+    //       funnelSlug: options.slug,
+    //     });
+    // }
+
+    const context = this._getFlowContext(options.slug);
+    if (!context) return;
+
+    this.capture("Step Viewed", {
+      step: stepName,
+      options: {
+        ...options,
+        flowId: context.id,
+        slug: options.slug,
+      },
+    });
+
+    if (this.debug) {
+      this.logger.debug(
+        `[Onbored] Step viewed: ${stepName} (flow: ${options.slug})`
+      );
+    }
+  }
+
+  private _enableStepViewTracking(): void {
+    if (typeof window === "undefined") return;
+
+    this.logger.info("🔵🟡 - enableStepViewTracking");
+
+    this.intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+
+          const el = entry.target as HTMLElement;
+          const stepName = el.getAttribute("data-onbored-step");
+          const slug = el.getAttribute("data-onbored-funnel");
+
+          this.logger.info("🔵🟡 - stepName", stepName);
+          this.logger.info("🔵🟡 - slug", slug);
+
+          if (stepName && slug) {
+            this._viewStep(stepName, { slug });
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    const observed = new WeakSet<Element>();
+
+    const observeMatchingElements = () => {
+      const elements = document.querySelectorAll<HTMLElement>(
+        "[data-onbored-step][data-onbored-funnel]"
+      );
+
+      elements.forEach((el) => {
+        if (!observed.has(el)) {
+          this.intersectionObserver?.observe(el);
+          observed.add(el);
+        }
+      });
+    };
+    // Initial pass
+    observeMatchingElements();
+
+    // Re-observe on DOM changes (SPA nav, re-renders, etc.)
+    this.mutationObserver = new MutationObserver(() => {
+      observeMatchingElements();
+    });
+
+    this.mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    if (this.debug) {
+      this.logger.debug(
+        "[Onbored] Step view tracking enabled (with SPA support)"
+      );
+    }
+  }
+
+  // Public API methods
+  async flow(slug: string) {
+    if (this.isInitializing) {
+      this.queuedFlows.push(slug);
+      this.logger.debug("Queued flow:", slug);
       return;
     }
 
-    if (this.flowContext.has(id)) {
-      this.logger.debug(`Flow ${id} already exists`);
+    await this.waitForInit();
+
+    this.logger.info("🔵🟡 - flow", slug);
+    this.logger.info("🔵🟡 - initialization complete");
+
+    if (this.flowContext.has(slug)) {
+      this.logger.debug(`Flow ${slug} already exists`);
       return;
     }
 
     if (this.env === "development") {
-      this.logger.info("Mock flow started:", id);
+      this.logger.info("Mock flow started:", slug);
       return;
     }
 
     try {
-      const response = await this.fetch("/api/ingest/flow", {
+      const response = await fetch("/api/ingest/flow", {
         method: "POST",
         body: JSON.stringify({
           sessionId: this.sessionId,
           projectKey: this.projectKey,
-          flowId: id,
+          slug: slug,
           startedAt: new Date().toISOString(),
         }),
         headers: this.headers,
       });
 
       const data: { status: string; flowId: string } = await response.json();
-      
+
       this.logger.debug("Flow registered", data);
       this.capture("Flow Started", { options: { flowId: data.flowId } });
-      
-      this.flowContext.set(id, {
+      this.trackingPageviewsForFlows.add(data.flowId);
+
+      this.flowContext.set(slug, {
         id: data.flowId,
         startedAt: Date.now(),
         status: "started",
       });
-      
+
       this._saveFlowContextToStorage();
     } catch (err) {
       this.logger.error("Flow registration failed:", err);
     }
   }
 
-  step(stepName: string, options: { flowId: string } & Record<string, any>) {
-    const context = this._getFlowContext(options.flowId);
+  async step(
+    stepName: string,
+    options: { slug: string } & Record<string, any>
+  ) {
+    await this.waitForInit();
+    const context = this._getFlowContext(options.slug);
     if (!context) return;
 
     this.capture("Step Completed", {
       step: stepName,
-      options,
+      options: {
+        ...options,
+        flowId: context.id,
+        slug: options.slug,
+      },
     });
+    this.trackingPageviewsForFlows.add(context.id);
 
-    this.logger.debug(`Step started: ${stepName} (flow: ${options.flowId})`);
+    this.logger.debug(`Step started: ${stepName} (flow: ${options.slug})`);
   }
 
-  skip(stepName: string, options: { flowId: string } & Record<string, any>) {
-    const context = this._getFlowContext(options.flowId);
+  async skip(
+    stepName: string,
+    options: { slug: string } & Record<string, any>
+  ) {
+    await this.waitForInit();
+    const context = this._getFlowContext(options.slug);
     if (!context) return;
 
     this.capture("Step Abandoned", {
       step: stepName,
-      options,
+      options: {
+        ...options,
+        flowId: context.id,
+        slug: options.slug,
+      },
     });
+
+    this.logger.debug(`Step completed: ${stepName} (flow: ${options.slug})`);
   }
 
-  completed(options: { flowId: string } & Record<string, any>) {
-    const context = this._getFlowContext(options.flowId);
+  async completed(options: { slug: string } & Record<string, any>) {
+    await this.waitForInit();
+    const context = this._getFlowContext(options.slug);
     if (!context) return;
 
     this.capture("Flow Completed", {
       options: {
         ...options,
-        flowId: options.flowId,
+        flowId: context.id,
+        slug: options.slug,
       },
     });
 
-    this.logger.debug("Flow completed:", { flowId: options.flowId });
+    this.logger.debug("Flow completed:", {
+      flowId: context.id,
+      slug: options.slug,
+    });
 
-    this.flowContext.set(options.flowId, {
+    this.flowContext.set(options.slug, {
       id: context.id,
       startedAt: context.startedAt,
       status: "completed",
@@ -403,15 +623,15 @@ export class OnboredClient {
     this._flush(); // flush immediately after completion
   }
 
-  capture(
+  async capture(
     eventType: string,
     data: {
       step?: string;
-      options?: { flowId?: string } & Record<string, any>;
+      options?: { flowId?: string; slug?: string } & Record<string, any>;
       result?: string;
     } = {},
     enqueue: boolean = true
-  ): EventPayload | null {
+  ): Promise<EventPayload | null> {
     const payload: EventPayload = {
       eventType,
       flowId: data.options?.flowId,
@@ -419,6 +639,7 @@ export class OnboredClient {
       options: {
         ...data.options,
         flowId: data.options?.flowId,
+        slug: data.options?.slug,
       },
       result: data.result,
       traits: this.traits,
@@ -437,10 +658,18 @@ export class OnboredClient {
     try {
       eventPayloadSchema.parse(payload);
 
-      if (enqueue) {
+      // Queue events that happen before initialization
+      if (this.isInitializing || enqueue) {
         this.eventQueue.push(payload);
-        this.logger.debug("Captured:", payload);
+        this.logger.debug("Queued event (pre-init):", payload);
+        return payload;
       }
+
+      // Wait for initialization to complete for non-queued events
+      if (!this.isInitializing) {
+        await this.waitForInit();
+      }
+
 
       return payload;
     } catch (error) {
@@ -460,6 +689,60 @@ export class OnboredClient {
     this.flowContext.clear();
     this.eventQueue = [];
     this.retryQueue = [];
+    this.trackingPageviewsForFlows.clear();
     this.logger.debug("Reset session and traits");
+  }
+
+  destroy() {
+    // Clear intervals
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = undefined;
+    }
+
+    if (this.retryInterval) {
+      clearInterval(this.retryInterval);
+      this.retryInterval = undefined;
+    }
+
+    // Disconnect observers
+    if (this.intersectionObserver) {
+      this.intersectionObserver.disconnect();
+      this.intersectionObserver = undefined;
+    }
+
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+      this.mutationObserver = undefined;
+    }
+
+    // Remove event listeners
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+      this.beforeUnloadHandler = undefined;
+    }
+
+    if (this.popstateHandler) {
+      window.removeEventListener("popstate", this.popstateHandler);
+      this.popstateHandler = undefined;
+    }
+
+    // Restore original history methods
+    if (this.originalPushState) {
+      history.pushState = this.originalPushState;
+      this.originalPushState = undefined;
+    }
+
+    if (this.originalReplaceState) {
+      history.replaceState = this.originalReplaceState;
+      this.originalReplaceState = undefined;
+    }
+
+    // Remove global debug function
+    if (this.env === "development" && typeof window !== "undefined") {
+      delete (window as any).__onboredFlush;
+    }
+
+    this.logger.debug("OnboredClient destroyed");
   }
 }
