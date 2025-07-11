@@ -26,4 +26,14 @@ export const DEFAULT_GLOBAL_OPTIONS = {
   intervals: {
     retry: 5000, // 5 seconds
   },
+  session_replay: {
+    // TODO: update api_host to use real api
+    api_host: "https://api.onbored.com",
+    flush_interval: 10000,
+    mask_inputs: true,
+    block_elements: [],
+    on_error: (err: Error) => {
+      console.error("Session replay error:", err);
+    },
+  },
 };

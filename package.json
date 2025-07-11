@@ -22,7 +22,9 @@
     "dev": "tsup src/index.ts --watch"
   },
   "dependencies": {
+    "@rrweb/types": "2.0.0-alpha.18",
     "pako": "^2.1.0",
+    "rrweb": "2.0.0-alpha.4",
     "uuid": "^11.1.0",
     "zod": "^3.25.64"
   },
@@ -31,6 +33,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.29",
+    "@types/pako": "^2.0.3",
     "@types/react": "^19.1.6",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3"

@@ -32,7 +32,5 @@ export const onbored = {
     onbored._get().completed(...args),
   capture: (...args: Parameters<OnboredClient["capture"]>) =>
     onbored._get().capture(...args),
-  context: (...args: Parameters<OnboredClient["context"]>) =>
-    onbored._get().context(...args),
   reset: () => onbored._get().reset(),
 };

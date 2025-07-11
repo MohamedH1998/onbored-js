@@ -4,14 +4,15 @@ import { applySettingDefaults, isValidUUID, sanitize } from "./helpers";
 import { Logger } from "./logger";
 import {
   Environment,
-  Fetch,
   FlowContext,
   OnboredClientOptions,
-  Traits,
   EventPayload,
   RetryEvent,
 } from "./types";
 import { eventPayloadSchema } from "./schema";
+import { SessionReplayOptions } from "./session-replay/types";
+import { SessionReplayClient } from "./session-replay/client";
+import { createSessionReplay } from "./session-replay";
 
 /**
  * OnBored Client.
@@ -23,7 +24,6 @@ export class OnboredClient {
   protected env: Environment;
   protected debug: boolean;
   protected userId: string;
-  protected traits: Traits;
   protected sessionId: string;
   protected sessionTimeoutMs: number;
   protected sessionStorageKey: string;
@@ -31,6 +31,8 @@ export class OnboredClient {
   protected flowContextStorageKey: string;
   protected flowContext: Map<string, FlowContext>;
   protected headers: Record<string, string>;
+  protected sessionReplay: false | SessionReplayOptions;
+  protected recorder: SessionReplayClient | null = null;
   // protected fetch: Fetch;
 
   private initPromise: Promise<void>;
@@ -45,7 +47,6 @@ export class OnboredClient {
   protected flushInterval: number = 5000;
   protected flushTimer?: number;
   protected flushingRetry = false;
-  private queuedViewEvents: Array<{ stepName: string; slug: string }> = [];
   private trackingPageviewsForFlows = new Set<string>();
 
   // Cleanup properties
@@ -62,11 +63,13 @@ export class OnboredClient {
    * @param projectKey The unique Onbored Key which is supplied when you create a new project in your project dashboard.
    * @param options.user_id This user id will be used to identify the user in the Onbored dashboard.
    * @param options.user_metadata The user metadata.
-   * @param options.traits The traits object.
    * @param options.debug Whether to enable debug mode.
    * @param options.env Set to "development" if you want to run the client in development mode.
    * @param options.global.fetch A custom fetch implementation.
    * @param options.global.headers Any additional headers to send with each network request.
+   * @param options.session_replay The session replay options.
+   * @param options.storage The storage options.
+   * @param options.global The global options.
    */
   constructor(protected projectKey: string, options?: OnboredClientOptions) {
     if (!projectKey) throw new Error("[Onbored]: projectKey is required.");
@@ -92,13 +95,14 @@ export class OnboredClient {
     const settings = applySettingDefaults(options, DEFAULTS);
 
     this.userId = settings.user_id ?? "";
-    this.traits = settings.traits ?? {};
     this.env = settings.env ?? "production";
     this.debug = settings.debug ?? false;
     this.sessionStorageKey = settings.storage.sessionStorageKey ?? "";
     this.activityStorageKey = settings.storage.activityStorageKey ?? "";
     this.flowContextStorageKey = settings.storage.flowContextStorageKey ?? "";
     this.headers = settings.global.headers ?? {};
+    // @ts-ignore
+    this.sessionReplay = settings.session_replay ?? false;
     // this.fetch = settings.global.fetch ?? fetch;
 
     this.logger = new Logger("[Onbored]", this.debug ? "debug" : "info");
@@ -132,12 +136,23 @@ export class OnboredClient {
         body: JSON.stringify({
           sessionId: this.sessionId,
           projectKey: this.projectKey,
-          traits: this.traits,
           userId: this.userId,
           startedAt: new Date().toISOString(),
         }),
         headers: this.headers,
       });
+
+      if (this.sessionReplay) {
+        if (this.debug) {
+          this.logger.debug("Creating session replay recorder");
+        }
+
+        this.recorder = await createSessionReplay(this.projectKey, {
+          sessionId: this.sessionId,
+          debug: this.debug,
+          ...this.sessionReplay,
+        });
+      }
 
       this.logger.debug("Session registered");
       this.isInitializing = false;
@@ -147,11 +162,6 @@ export class OnboredClient {
 
       this.queuedFlows.forEach((flow) => this.flow(flow));
       this.queuedFlows = [];
-
-      // this.queuedViewEvents.forEach(({ stepName, slug }) =>
-      //   this._viewStep(stepName, { slug })
-      // );
-      // this.queuedViewEvents = [];
     } catch (err) {
       this.logger.error("Session registration failed:", err);
       this.isInitializing = false;
@@ -398,7 +408,6 @@ export class OnboredClient {
       this.logger.debug("[Onbored] SPA route change tracking enabled");
   }
 
-  // Helper methods for tracking last path
   private _getLastPath(): string | undefined {
     return (
       sessionStorage.getItem(`${this.flowContextStorageKey}_last_path`) ||
@@ -414,15 +423,6 @@ export class OnboredClient {
     stepName: string,
     options: { slug: string } & Record<string, any>
   ) {
-    // if (this.isInitializing) {
-    //   this.queuedViewEvents.push({ stepName, slug: options.slug });
-    //   if (this.debug)
-    //     this.logger.debug("[Onbored] Queued view event:", {
-    //       stepName,
-    //       funnelSlug: options.slug,
-    //     });
-    // }
-
     const context = this._getFlowContext(options.slug);
     if (!context) return;
 
@@ -642,7 +642,6 @@ export class OnboredClient {
         slug: data.options?.slug,
       },
       result: data.result,
-      traits: this.traits,
       sessionId: this.sessionId,
       timestamp: new Date().toISOString(),
       projectKey: this.projectKey,
@@ -670,7 +669,6 @@ export class OnboredClient {
         await this.waitForInit();
       }
 
-
       return payload;
     } catch (error) {
       this.logger.error("Invalid event payload:", error, payload);
@@ -678,19 +676,14 @@ export class OnboredClient {
     }
   }
 
-  context(contextTraits: Record<string, any>) {
-    this.traits = { ...this.traits, ...contextTraits };
-    this.logger.debug("Context updated:", this.traits);
-  }
-
   reset() {
     this.sessionId = uuidv4();
-    this.traits = {};
     this.flowContext.clear();
     this.eventQueue = [];
     this.retryQueue = [];
     this.trackingPageviewsForFlows.clear();
-    this.logger.debug("Reset session and traits");
+    this.logger.debug("Reset session");
+    this.recorder?.stop();
   }
 
   destroy() {

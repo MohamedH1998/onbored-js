@@ -11,6 +11,13 @@ export function applySettingDefaults(
       ...options?.storage,
       ...defaults?.storage,
     },
+    session_replay:
+      options.session_replay === false
+        ? false
+        : {
+            ...defaults?.session_replay,
+            ...options?.session_replay,
+          },
     global: {
       ...options?.global,
       ...defaults?.global,
