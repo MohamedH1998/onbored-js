@@ -1,0 +1,25 @@
+"use client";
+import React, { useEffect } from "react";
+import { onbored } from "../lib"; // adjust path as needed
+import type { OnboredClientOptions } from "../lib/types";
+
+interface OnboredProviderProps {
+  children: React.ReactNode;
+  config: {
+    projectKey: string;
+  } & OnboredClientOptions;
+}
+
+export function OnboredProvider({ children, config }: OnboredProviderProps) {
+  useEffect(() => {
+    try {
+      onbored.init(config);
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[OnboredProvider] Failed to initialize:", err);
+      }
+    }
+  }, [config.projectKey]);
+
+  return <>{children}</>;
+}
