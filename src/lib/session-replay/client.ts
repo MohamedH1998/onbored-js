@@ -4,8 +4,8 @@ import pako from "pako";
 import { SessionReplay, SessionReplayOptions } from "./types";
 import { Logger } from "../logger";
 
-const MAX_BYTES_PER_PAYLOAD = 900_000; // ~900KB buffer limit
-const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 mins
+const MAX_BYTES_PER_PAYLOAD = 900_000;
+const IDLE_TIMEOUT = 5 * 60 * 1000;
 
 export class SessionReplayClient {
   private events: eventWithTime[] = [];
@@ -14,6 +14,7 @@ export class SessionReplayClient {
   private isRecording = false;
   private isIdle = false;
   private lastActivity = Date.now();
+  private hasSeenFullSnapshot = false;
   private logger: Logger;
 
   private options: Required<SessionReplayOptions> & {
@@ -56,12 +57,24 @@ export class SessionReplayClient {
     const rrweb = await import("rrweb");
     this.isRecording = true;
     this.lastActivity = Date.now();
+    this.hasSeenFullSnapshot = false;
 
     const recordOptions: recordOptions<eventWithTime> = {
       emit: (event) => {
+        this.logger.debug("🧠 EMIT", {
+          type: event.type,
+          isFull: event.type === EventType.FullSnapshot,
+        });
         this.events.push(event);
-        this._maybeFlushSnapshot();
         this._checkIdle(event);
+        this._maybeFlushSnapshot();
+
+        if (event.type === EventType.FullSnapshot) {
+          this.hasSeenFullSnapshot = true;
+          this.logger.debug("📸 FullSnapshot captured");
+          this._uploadEvents(); // flush immediately once we get it
+        }
+
         this.logger.debug("💨 Event captured", { type: event.type });
       },
       blockSelector: this.options.block_elements.join(","),
@@ -83,10 +96,13 @@ export class SessionReplayClient {
 
     this.stopFn = rrweb.record(recordOptions) as (() => void) | null;
 
-    // Force flush right after start to guarantee FullSnapshot is saved
+    // ⏱️ Fallback: if FullSnapshot hasn't been seen in 1s, force it
     setTimeout(() => {
-      this._uploadEvents();
-    }, 500);
+      if (!this.hasSeenFullSnapshot) {
+        this.logger.warn("⚠️ Forcing FullSnapshot (none seen yet)");
+        (window as any).rrweb?.takeFullSnapshot?.();
+      }
+    }, 1000);
 
     this._startUploadTimer();
     document.addEventListener("visibilitychange", this.handleVisibilityChange);

@@ -131,27 +131,44 @@ export class OnboredClient {
     this._startFlushTimer();
 
     try {
-      await fetch("/api/ingest/session", {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: this.sessionId,
-          projectKey: this.projectKey,
-          userId: this.userId,
-          startedAt: new Date().toISOString(),
-        }),
-        headers: this.headers,
-      });
 
       if (this.sessionReplay) {
-        if (this.debug) {
-          this.logger.debug("Creating session replay recorder");
-        }
 
-        this.recorder = await createSessionReplay(this.projectKey, {
-          sessionId: this.sessionId,
-          debug: this.debug,
-          ...this.sessionReplay,
+        if (this.debug) this.logger.debug("Creating session replay recorder");
+
+        try {
+          this.recorder = await createSessionReplay(this.projectKey, {
+            sessionId: this.sessionId,
+            debug: this.debug,
+            ...this.sessionReplay,
+          });
+        } catch (recErr) {
+          this.logger.error("Failed to init session replay:", recErr);
+        }
+      }
+
+      try {
+        const res = await fetch("/api/ingest/session", {
+          method: "POST",
+          body: JSON.stringify({
+            sessionId: this.sessionId,
+            projectKey: this.projectKey,
+            userId: this.userId,
+            startedAt: new Date().toISOString(),
+          }),
+          headers: this.headers,
         });
+
+
+
+        if (!res.ok) {
+          throw new Error(
+            `Session registration failed with status ${res.status}`
+          );
+        }
+      } catch (fetchErr) {
+        this.logger.error("Session registration failed:", fetchErr);
+        // You can optionally stop the recorder here if backend registration is mandatory
       }
 
       this.logger.debug("Session registered");
@@ -163,7 +180,7 @@ export class OnboredClient {
       this.queuedFlows.forEach((flow) => this.flow(flow));
       this.queuedFlows = [];
     } catch (err) {
-      this.logger.error("Session registration failed:", err);
+      this.logger.error("Initialization failed:", err);
       this.isInitializing = false;
     }
   }
