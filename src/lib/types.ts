@@ -1,6 +1,6 @@
-export type UserMetadata = Record<string, any>;
+import { SessionReplayOptions } from "./session-replay/types";
 
-export type Traits = Record<string, any>;
+export type UserMetadata = Record<string, any>;
 
 export type Environment = "development" | "production";
 
@@ -15,7 +15,6 @@ export type Fetch = typeof fetch;
 export type OnboredClientOptions = {
   user_id?: string;
   user_metadata?: UserMetadata;
-  traits?: Traits;
   debug?: boolean;
   env?: Environment;
   storage?: Storage;
@@ -23,6 +22,7 @@ export type OnboredClientOptions = {
     fetch?: Fetch;
     headers?: Record<string, string>;
   };
+  session_replay?: false | SessionReplayOptions;
 };
 
 export type FlowContext = {
