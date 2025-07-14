@@ -131,11 +131,9 @@ export class OnboredClient {
     this._startFlushTimer();
 
     try {
-
-      if (this.sessionReplay) {
-
+      // @TODO: Add better validation for the sessionReplay object
+      if (this.sessionReplay && Object.keys(this.sessionReplay).length > 0) {
         if (this.debug) this.logger.debug("Creating session replay recorder");
-
         try {
           this.recorder = await createSessionReplay(this.projectKey, {
             sessionId: this.sessionId,
@@ -146,7 +144,6 @@ export class OnboredClient {
           this.logger.error("Failed to init session replay:", recErr);
         }
       }
-
       try {
         const res = await fetch("/api/ingest/session", {
           method: "POST",
@@ -158,8 +155,6 @@ export class OnboredClient {
           }),
           headers: this.headers,
         });
-
-
 
         if (!res.ok) {
           throw new Error(
