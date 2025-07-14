@@ -1,7 +1,7 @@
 import { recordOptions } from "rrweb/typings/types";
 import { eventWithTime, EventType, IncrementalSource } from "@rrweb/types";
 import pako from "pako";
-import { SessionReplay, SessionReplayOptions } from "./types";
+import { SessionReplayOptions } from "./types";
 import { Logger } from "../logger";
 
 const MAX_BYTES_PER_PAYLOAD = 900_000;
@@ -196,40 +196,34 @@ export class SessionReplayClient {
   private async _uploadEvents(): Promise<void> {
     if (this.events.length === 0) return;
 
-    const hasFullSnapshot = this.events.some(
-      (e) => e.type === EventType.FullSnapshot
-    );
-    if (!hasFullSnapshot) {
-      this.logger.warn("⚠️ No FullSnapshot found in event batch");
-    }
-
-    this.logger.debug("📤 Uploading session events", {
-      count: this.events.length,
-    });
-
     const eventsToUpload = [...this.events];
     this.events = [];
 
-    try {
-      const payload: SessionReplay = {
-        sessionId: this.options.sessionId,
+    const lines = eventsToUpload.map((e) =>
+      JSON.stringify({
         projectKey: this.projectKey,
-        timestamp: Date.now(),
-        events: eventsToUpload,
-      };
-      const compressed = pako.gzip(JSON.stringify(payload));
+        sessionId: this.options.sessionId,
+        timestamp: Math.floor(e.timestamp / 1000), // Convert to seconds
+        event: e,
+      })
+    );
+
+    const ndjson = lines.join("\n");
+
+    try {
+      const compressed = pako.gzip(ndjson);
 
       await fetch(this.options.uploadUrl, {
         method: "POST",
         headers: {
-          "Content-Type": "application/octet-stream",
+          "Content-Type": "application/x-ndjson",
           "Content-Encoding": "gzip",
         },
         body: compressed,
       });
     } catch (error) {
       this.options.on_error?.(error as Error);
-      this.events.unshift(...eventsToUpload); // Retry
+      this.events.unshift(...eventsToUpload); // Retry on failure
     }
   }
 }
