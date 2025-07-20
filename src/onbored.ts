@@ -140,7 +140,7 @@ class Onbored {
       .then((response) => response.json())
       .then((data: { status: string; flowId: string }) => {
         if (this.debug) console.log("[Onbored] Flow registered", data);
-        this.capture("Flow Started", { options: { flowId: data.flowId } });
+        this.capture("flow_started", { options: { flowId: data.flowId } });
         this.flowContexts.set(funnelSlug, {
           id: data.flowId,
           startedAt: Date.now(),
@@ -164,7 +164,7 @@ class Onbored {
 
     if (!context) return;
 
-    this.capture("Step Completed", {
+    this.capture("step_completed", {
       step: stepName,
       options: {
         ...options,
@@ -188,7 +188,7 @@ class Onbored {
 
     if (!context) return;
 
-    this.capture("Step Abandoned", {
+    this.capture("step_abandoned", {
       step: stepName,
       options: {
         ...options,
@@ -203,7 +203,7 @@ class Onbored {
 
     if (!context) return;
 
-    this.capture("Flow Completed", {
+    this.capture("flow_completed", {
       options: {
         ...options,
         flowId: context.id,
@@ -431,7 +431,7 @@ class Onbored {
       pageViewOptions.flowId = flowIds[0];
     }
 
-    this.capture("Page View", { options: pageViewOptions });
+    this.capture("page_viewed", { options: pageViewOptions });
   };
 
   private enableAutoPageviewTracking(): void {
@@ -458,7 +458,7 @@ class Onbored {
           if (ctx) {
             const last = ctx.lastVisitedPath;
             if (last && path !== last) {
-              this.capture("Page View", {
+              this.capture("page_viewed", {
                 options: {
                   from: last,
                   to: path,
@@ -500,7 +500,7 @@ class Onbored {
     const context = this.getFlowContext(options.funnelSlug);
     if (!context) return;
     
-    this.capture("Step Viewed", {
+    this.capture("step_viewed", {
       step: stepName,
       options: {
         ...options,

@@ -40,8 +40,18 @@ export type FlowContext = {
 //   env?: "development" | "production";
 // }
 
+export type EventType =
+  | string
+  | "page_viewed"
+  | "flow_started"
+  | "flow_completed"
+  | "step_viewed"
+  | "step_skipped"
+  | "step_abandoned"
+  | "step_completed";
+
 export interface EventPayload {
-  eventType: string;
+  eventType: EventType;
   slug?: string;
   flowId?: string;
   step?: string;
