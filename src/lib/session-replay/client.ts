@@ -35,7 +35,7 @@ export class SessionReplayClient {
     const uploadUrl = `${options.api_host.replace(
       /\/$/,
       ""
-    )}/sessions?sessionId=${options.sessionId}`;
+    )}/ingest/session-replay`;
 
     this.options = {
       flush_interval: 10_000,
