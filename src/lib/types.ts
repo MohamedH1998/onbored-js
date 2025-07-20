@@ -17,6 +17,7 @@ export type OnboredClientOptions = {
   user_metadata?: UserMetadata;
   debug?: boolean;
   env?: Environment;
+  api_host?: string;
   storage?: Storage;
   global?: {
     fetch?: Fetch;

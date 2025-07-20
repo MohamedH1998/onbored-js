@@ -29,6 +29,7 @@ export class OnboredClient {
   protected sessionStorageKey: string;
   protected activityStorageKey: string;
   protected flowContextStorageKey: string;
+  protected api_host: string;
   protected flowContext: Map<string, FlowContext>;
   protected headers: Record<string, string>;
   protected sessionReplay: false | SessionReplayOptions;
@@ -64,6 +65,7 @@ export class OnboredClient {
    * @param options.user_id This user id will be used to identify the user in the Onbored dashboard.
    * @param options.user_metadata The user metadata.
    * @param options.debug Whether to enable debug mode.
+   * @param options.api_host The API host.
    * @param options.env Set to "development" if you want to run the client in development mode.
    * @param options.global.fetch A custom fetch implementation.
    * @param options.global.headers Any additional headers to send with each network request.
@@ -97,6 +99,7 @@ export class OnboredClient {
     this.userId = settings.user_id ?? "";
     this.env = settings.env ?? "production";
     this.debug = settings.debug ?? false;
+    this.api_host = settings.api_host ?? "https://api.onbored.com";
     this.sessionStorageKey = settings.storage.sessionStorageKey ?? "";
     this.activityStorageKey = settings.storage.activityStorageKey ?? "";
     this.flowContextStorageKey = settings.storage.flowContextStorageKey ?? "";
@@ -302,7 +305,7 @@ export class OnboredClient {
     }
 
     try {
-      const response = await fetch("/api/ingest", {
+      const response = await fetch(this.api_host + "/ingest/events", {
         method: "POST",
         body: JSON.stringify(payload),
         headers: this.headers,
@@ -537,7 +540,7 @@ export class OnboredClient {
     }
 
     try {
-      const response = await fetch("/api/ingest/flow", {
+      const response = await fetch(`/api/ingest/flow`, {
         method: "POST",
         body: JSON.stringify({
           sessionId: this.sessionId,
