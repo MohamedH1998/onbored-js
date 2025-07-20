@@ -8,6 +8,7 @@ import {
   OnboredClientOptions,
   EventPayload,
   RetryEvent,
+  EventType,
 } from "./types";
 import { eventPayloadSchema } from "./schema";
 import { SessionReplayOptions } from "./session-replay/types";
@@ -379,7 +380,7 @@ export class OnboredClient {
     if (typeof window === "undefined") return;
 
     this.popstateHandler = () => {
-      this.capture("Page View", {
+      this.capture("page_viewed", {
         options: {
           path: sanitize(window.location.pathname),
           title: sanitize(document.title),
@@ -401,7 +402,7 @@ export class OnboredClient {
           const path = sanitize(window.location.pathname);
           const lastPath = this._getLastPath();
 
-          this.capture("Page View", {
+          this.capture("page_viewed", {
             options: {
               path,
               title: sanitize(document.title),
@@ -441,7 +442,7 @@ export class OnboredClient {
     const context = this._getFlowContext(options.slug);
     if (!context) return;
 
-    this.capture("Step Viewed", {
+    this.capture("step_viewed", {
       step: stepName,
       options: {
         ...options,
@@ -554,7 +555,7 @@ export class OnboredClient {
       const data: { status: string; flowId: string } = await response.json();
 
       this.logger.debug("Flow registered", data);
-      this.capture("Flow Started", { options: { flowId: data.flowId } });
+      this.capture("flow_started", { options: { flowId: data.flowId } });
       this.trackingPageviewsForFlows.add(data.flowId);
 
       this.flowContext.set(slug, {
@@ -577,7 +578,7 @@ export class OnboredClient {
     const context = this._getFlowContext(options.slug);
     if (!context) return;
 
-    this.capture("Step Completed", {
+    this.capture("step_completed", {
       step: stepName,
       options: {
         ...options,
@@ -598,7 +599,7 @@ export class OnboredClient {
     const context = this._getFlowContext(options.slug);
     if (!context) return;
 
-    this.capture("Step Abandoned", {
+    this.capture("step_abandoned", {
       step: stepName,
       options: {
         ...options,
@@ -614,8 +615,7 @@ export class OnboredClient {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) return;
-
-    this.capture("Flow Completed", {
+      this.capture("flow_completed", {
       options: {
         ...options,
         flowId: context.id,
@@ -639,7 +639,7 @@ export class OnboredClient {
   }
 
   async capture(
-    eventType: string,
+    eventType: EventType,
     data: {
       step?: string;
       options?: { flowId?: string; slug?: string } & Record<string, any>;
