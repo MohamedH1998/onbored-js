@@ -692,11 +692,10 @@ class Onbored {
       await fetch("/api/ingest/session", {
         method: "POST",
         body: JSON.stringify({
-          sessionId: this.sessionId,
-          projectKey: this.projectKey,
-          traits: this.traits,
-          userId: this.userId,
-          startedAt: new Date().toISOString(),
+          id: this.sessionId,
+          project_key: this.projectKey,
+          user_id: this.userId,
+          started_at: new Date().toISOString(),
         }),
         headers: { "Content-Type": "application/json" },
       });
