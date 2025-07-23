@@ -543,12 +543,14 @@ export class OnboredClient {
     try {
       const timestamp = new Date().toISOString();
       const payload: EventPayload = {
+        id: crypto.randomUUID(),
         event_type: "flow_started",
         flow_id: slug,
         step_id: "flow_started",
         options: {
           slug: slug,
         },
+
         session_id: this.sessionId,
         timestamp: timestamp,
         project_key: this.projectKey,
