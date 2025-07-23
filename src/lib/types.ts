@@ -51,16 +51,17 @@ export type EventType =
   | "step_completed";
 
 export interface EventPayload {
-  eventType: EventType;
+  id: string;
+  event_type: EventType;
   slug?: string;
-  flowId?: string;
-  step?: string;
+  flow_id?: string;
+  step_id?: string;
   options: Record<string, any>;
   result?: string;
   traits?: Record<string, any>;
-  sessionId: string;
+  session_id: string;
   timestamp: string;
-  projectKey: string;
+  project_key: string;
   url: string;
   referrer?: string;
 }
