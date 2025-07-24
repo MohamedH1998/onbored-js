@@ -148,14 +148,15 @@ export class OnboredClient {
           this.logger.error("Failed to init session replay:", recErr);
         }
       }
+
       try {
         const res = await fetch("/api/ingest/session", {
           method: "POST",
           body: JSON.stringify({
-            sessionId: this.sessionId,
-            projectKey: this.projectKey,
-            userId: this.userId,
-            startedAt: new Date().toISOString(),
+            id: this.sessionId,
+            project_key: this.projectKey,
+            user_id: this.userId,
+            started_at: new Date().toISOString(),
           }),
           headers: this.headers,
         });
