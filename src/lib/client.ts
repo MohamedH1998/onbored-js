@@ -150,7 +150,7 @@ export class OnboredClient {
       }
 
       try {
-        const res = await fetch("/api/ingest/session", {
+        const res = await fetch(this.api_host + "/ingest/session", {
           method: "POST",
           body: JSON.stringify({
             id: this.sessionId,
@@ -342,7 +342,7 @@ export class OnboredClient {
     const payload = [...this.eventQueue];
     this.eventQueue = [];
 
-    const endpoint = "/api/ingest";
+    const endpoint = this.api_host + "/ingest/events"
 
     if (navigator.sendBeacon && isUnload) {
       const blob = new Blob([JSON.stringify(payload)], {
@@ -382,10 +382,8 @@ export class OnboredClient {
 
     this.popstateHandler = () => {
       this.capture("page_viewed", {
-        options: {
-          path: sanitize(window.location.pathname),
-          title: sanitize(document.title),
-        },
+        url: window.location.href,
+        referrer: document.referrer || undefined,
       });
     };
 
@@ -404,11 +402,8 @@ export class OnboredClient {
           const lastPath = this._getLastPath();
 
           this.capture("page_viewed", {
-            options: {
-              path,
-              title: sanitize(document.title),
-              ...(lastPath && { from: lastPath, to: path }),
-            },
+            url: window.location.href,
+            referrer: document.referrer || undefined,
           });
 
           // Update last path for next comparison
@@ -444,11 +439,11 @@ export class OnboredClient {
     if (!context) return;
 
     this.capture("step_viewed", {
-      step: stepName,
-      options: {
+      step_id: stepName,
+      flow_id: context.id,
+      funnel_slug: options.slug,
+      metadata: {
         ...options,
-        flowId: context.id,
-        slug: options.slug,
       },
     });
 
@@ -543,15 +538,13 @@ export class OnboredClient {
 
     try {
       const timestamp = new Date().toISOString();
+      const flowId = crypto.randomUUID();
       const payload: EventPayload = {
         id: crypto.randomUUID(),
         event_type: "flow_started",
-        flow_id: slug,
+        flow_id: flowId,
         step_id: "flow_started",
-        options: {
-          slug: slug,
-        },
-
+        funnel_slug: slug,
         session_id: this.sessionId,
         timestamp: timestamp,
         project_key: this.projectKey,
@@ -563,11 +556,13 @@ export class OnboredClient {
         body: JSON.stringify(payload),
         headers: this.headers,
       });
-      const data: { status: string; flowId: string } = await response.json();
-      this.trackingPageviewsForFlows.add(data.flowId);
+      console.log("🟣🟣- response", response);
+      const data: { status: string } = await response.json();
+      console.log("🟣🟣- data", data);
+      this.trackingPageviewsForFlows.add(flowId);
 
       this.flowContext.set(slug, {
-        id: data.flowId,
+        id: flowId,
         startedAt: new Date(timestamp).getTime(),
         status: "started",
       });
@@ -587,11 +582,11 @@ export class OnboredClient {
     if (!context) return;
 
     this.capture("step_completed", {
-      step: stepName,
-      options: {
+      step_id: stepName,
+      flow_id: context.id,
+      funnel_slug: options.slug,
+      metadata: {
         ...options,
-        flowId: context.id,
-        slug: options.slug,
       },
     });
     this.trackingPageviewsForFlows.add(context.id);
@@ -608,11 +603,11 @@ export class OnboredClient {
     if (!context) return;
 
     this.capture("step_abandoned", {
-      step: stepName,
-      options: {
+      step_id: stepName,
+      flow_id: context.id,
+      funnel_slug: options.slug,
+      metadata: {
         ...options,
-        flowId: context.id,
-        slug: options.slug,
       },
     });
 
@@ -624,10 +619,10 @@ export class OnboredClient {
     const context = this._getFlowContext(options.slug);
     if (!context) return;
     this.capture("flow_completed", {
-      options: {
+      flow_id: context.id,
+      funnel_slug: options.slug,
+      metadata: {
         ...options,
-        flowId: context.id,
-        slug: options.slug,
       },
     });
 
@@ -648,24 +643,25 @@ export class OnboredClient {
 
   async capture(
     event_type: EventType,
-    data: {
-      step?: string;
-      options?: { flowId?: string; slug?: string } & Record<string, any>;
-      result?: string;
-    } = {},
+    data: Partial<
+      Omit<
+        EventPayload,
+        | "id"
+        | "event_type"
+        | "session_id"
+        | "timestamp"
+        | "project_key"
+      >
+    >,
     enqueue: boolean = true
   ): Promise<EventPayload | null> {
     const payload: EventPayload = {
       id: crypto.randomUUID(),
       event_type,
-      flow_id: data.options?.flowId,
-      step_id: data.step,
-      options: {
-        ...data.options,
-        flowId: data.options?.flowId,
-        slug: data.options?.slug,
-      },
-      result: data.result,
+      flow_id: data.flow_id,
+      step_id: data.step_id,
+      metadata: data.metadata,
+      funnel_slug: data.funnel_slug,
       session_id: this.sessionId,
       timestamp: new Date().toISOString(),
       project_key: this.projectKey,
