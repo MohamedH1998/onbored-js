@@ -360,8 +360,8 @@ export class OnboredClient {
       this.logger.debug(
         "Flushing Events",
         payload.map((p) => ({
-          event: p.eventType,
-          step: p.step,
+          event: p.event_type,
+          step: p.step_id,
           timestamp: p.timestamp,
         }))
       );
@@ -542,26 +542,33 @@ export class OnboredClient {
     }
 
     try {
-      const response = await fetch(`/api/ingest/flow`, {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: this.sessionId,
-          projectKey: this.projectKey,
+      const timestamp = new Date().toISOString();
+      const payload: EventPayload = {
+        id: crypto.randomUUID(),
+        event_type: "flow_started",
+        flow_id: slug,
+        step_id: "flow_started",
+        options: {
           slug: slug,
-          startedAt: new Date().toISOString(),
-        }),
+        },
+
+        session_id: this.sessionId,
+        timestamp: timestamp,
+        project_key: this.projectKey,
+        url: window.location.href,
+        referrer: document.referrer || undefined,
+      };
+      const response = await fetch(this.api_host + "/ingest/flow", {
+        method: "POST",
+        body: JSON.stringify(payload),
         headers: this.headers,
       });
-
       const data: { status: string; flowId: string } = await response.json();
-
-      this.logger.debug("Flow registered", data);
-      this.capture("flow_started", { options: { flowId: data.flowId } });
       this.trackingPageviewsForFlows.add(data.flowId);
 
       this.flowContext.set(slug, {
         id: data.flowId,
-        startedAt: Date.now(),
+        startedAt: new Date(timestamp).getTime(),
         status: "started",
       });
 
@@ -616,7 +623,7 @@ export class OnboredClient {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) return;
-      this.capture("flow_completed", {
+    this.capture("flow_completed", {
       options: {
         ...options,
         flowId: context.id,
@@ -640,7 +647,7 @@ export class OnboredClient {
   }
 
   async capture(
-    eventType: EventType,
+    event_type: EventType,
     data: {
       step?: string;
       options?: { flowId?: string; slug?: string } & Record<string, any>;
@@ -649,18 +656,19 @@ export class OnboredClient {
     enqueue: boolean = true
   ): Promise<EventPayload | null> {
     const payload: EventPayload = {
-      eventType,
-      flowId: data.options?.flowId,
-      step: data.step,
+      id: crypto.randomUUID(),
+      event_type,
+      flow_id: data.options?.flowId,
+      step_id: data.step,
       options: {
         ...data.options,
         flowId: data.options?.flowId,
         slug: data.options?.slug,
       },
       result: data.result,
-      sessionId: this.sessionId,
+      session_id: this.sessionId,
       timestamp: new Date().toISOString(),
-      projectKey: this.projectKey,
+      project_key: this.projectKey,
       url: window.location.href,
       referrer: document.referrer || undefined,
     };
