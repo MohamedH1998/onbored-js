@@ -53,12 +53,10 @@ export type EventType =
 export interface EventPayload {
   id: string;
   event_type: EventType;
-  slug?: string;
+  funnel_slug?: string;
   flow_id?: string;
   step_id?: string;
-  options: Record<string, any>;
-  result?: string;
-  traits?: Record<string, any>;
+  metadata?: Record<string, any>;
   session_id: string;
   timestamp: string;
   project_key: string;
