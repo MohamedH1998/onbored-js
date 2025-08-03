@@ -51,6 +51,8 @@ export class OnboredClient {
   protected flushingRetry = false;
   private trackingPageviewsForFlows = new Set<string>();
 
+  protected queuedStepViews: Array<{ stepName: string; options: { slug: string } & Record<string, any> }> = [];
+
   // Cleanup properties
   private retryInterval?: number;
   private intersectionObserver?: IntersectionObserver;
@@ -342,7 +344,7 @@ export class OnboredClient {
     const payload = [...this.eventQueue];
     this.eventQueue = [];
 
-    const endpoint = this.api_host + "/ingest/events"
+    const endpoint = this.api_host + "/ingest/events";
 
     if (navigator.sendBeacon && isUnload) {
       const blob = new Blob([JSON.stringify(payload)], {
@@ -436,16 +438,25 @@ export class OnboredClient {
     options: { slug: string } & Record<string, any>
   ) {
     const context = this._getFlowContext(options.slug);
-    if (!context) return;
+    
+    if (!context) {
+      this.queuedStepViews.push({ stepName, options });
+      this.logger.debug(`Queued step view for ${stepName} (flow: ${options.slug}) - flow not yet initialized`);
+      return;
+    }
 
-    this.capture("step_viewed", {
-      step_id: stepName,
-      flow_id: context.id,
-      funnel_slug: options.slug,
-      metadata: {
-        ...options,
+    this.capture(
+      "step_viewed",
+      {
+        step_id: stepName,
+        flow_id: context.id,
+        funnel_slug: options.slug,
+        metadata: {
+          ...options,
+        },
       },
-    });
+      true
+    );
 
     if (this.debug) {
       this.logger.debug(
@@ -468,8 +479,6 @@ export class OnboredClient {
           const stepName = el.getAttribute("data-onbored-step");
           const slug = el.getAttribute("data-onbored-funnel");
 
-          this.logger.info("🔵🟡 - stepName", stepName);
-          this.logger.info("🔵🟡 - slug", slug);
 
           if (stepName && slug) {
             this._viewStep(stepName, { slug });
@@ -556,9 +565,7 @@ export class OnboredClient {
         body: JSON.stringify(payload),
         headers: this.headers,
       });
-      console.log("🟣🟣- response", response);
       const data: { status: string } = await response.json();
-      console.log("🟣🟣- data", data);
       this.trackingPageviewsForFlows.add(flowId);
 
       this.flowContext.set(slug, {
@@ -568,9 +575,26 @@ export class OnboredClient {
       });
 
       this._saveFlowContextToStorage();
+      
+      this._processQueuedStepViews(slug);
     } catch (err) {
       this.logger.error("Flow registration failed:", err);
     }
+  }
+
+  private _processQueuedStepViews(flowSlug: string) {
+    const relevantStepViews = this.queuedStepViews.filter(
+      queued => queued.options.slug === flowSlug
+    );
+    
+    this.queuedStepViews = this.queuedStepViews.filter(
+      queued => queued.options.slug !== flowSlug
+    );
+    
+    relevantStepViews.forEach(({ stepName, options }) => {
+      this.logger.debug(`Processing queued step view: ${stepName} (flow: ${flowSlug})`);
+      this._viewStep(stepName, options);
+    });
   }
 
   async step(
@@ -646,11 +670,7 @@ export class OnboredClient {
     data: Partial<
       Omit<
         EventPayload,
-        | "id"
-        | "event_type"
-        | "session_id"
-        | "timestamp"
-        | "project_key"
+        "id" | "event_type" | "session_id" | "timestamp" | "project_key"
       >
     >,
     enqueue: boolean = true
@@ -701,6 +721,7 @@ export class OnboredClient {
     this.flowContext.clear();
     this.eventQueue = [];
     this.retryQueue = [];
+    this.queuedStepViews = [];
     this.trackingPageviewsForFlows.clear();
     this.logger.debug("Reset session");
     this.recorder?.stop();
