@@ -51,7 +51,10 @@ export class OnboredClient {
   protected flushingRetry = false;
   private trackingPageviewsForFlows = new Set<string>();
 
-  protected queuedStepViews: Array<{ stepName: string; options: { slug: string } & Record<string, any> }> = [];
+  protected queuedStepViews: Array<{
+    stepName: string;
+    options: { slug: string } & Record<string, any>;
+  }> = [];
 
   // Cleanup properties
   private retryInterval?: number;
@@ -124,8 +127,6 @@ export class OnboredClient {
   }
 
   private async _init() {
-    this.logger.debug("Initialized", this);
-
     if (this.env === "development") {
       this.logger.info("Dev mode enabled – no network requests will be sent");
       this.isInitializing = false;
@@ -170,7 +171,6 @@ export class OnboredClient {
         }
       } catch (fetchErr) {
         this.logger.error("Session registration failed:", fetchErr);
-        // You can optionally stop the recorder here if backend registration is mandatory
       }
 
       this.logger.debug("Session registered");
@@ -438,10 +438,9 @@ export class OnboredClient {
     options: { slug: string } & Record<string, any>
   ) {
     const context = this._getFlowContext(options.slug);
-    
+
     if (!context) {
       this.queuedStepViews.push({ stepName, options });
-      this.logger.debug(`Queued step view for ${stepName} (flow: ${options.slug}) - flow not yet initialized`);
       return;
     }
 
@@ -478,7 +477,6 @@ export class OnboredClient {
           const el = entry.target as HTMLElement;
           const stepName = el.getAttribute("data-onbored-step");
           const slug = el.getAttribute("data-onbored-funnel");
-
 
           if (stepName && slug) {
             this._viewStep(stepName, { slug });
@@ -575,7 +573,7 @@ export class OnboredClient {
       });
 
       this._saveFlowContextToStorage();
-      
+
       this._processQueuedStepViews(slug);
     } catch (err) {
       this.logger.error("Flow registration failed:", err);
@@ -584,15 +582,14 @@ export class OnboredClient {
 
   private _processQueuedStepViews(flowSlug: string) {
     const relevantStepViews = this.queuedStepViews.filter(
-      queued => queued.options.slug === flowSlug
+      (queued) => queued.options.slug === flowSlug
     );
-    
+
     this.queuedStepViews = this.queuedStepViews.filter(
-      queued => queued.options.slug !== flowSlug
+      (queued) => queued.options.slug !== flowSlug
     );
-    
+
     relevantStepViews.forEach(({ stepName, options }) => {
-      this.logger.debug(`Processing queued step view: ${stepName} (flow: ${flowSlug})`);
       this._viewStep(stepName, options);
     });
   }
@@ -603,7 +600,11 @@ export class OnboredClient {
   ) {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
-    if (!context) return;
+    if (!context) {
+      console.log("🔴 - no context in this step", stepName);
+      // this.queuedStepViews.push({ stepName, options });
+      return;
+    }
 
     this.capture("step_completed", {
       step_id: stepName,
