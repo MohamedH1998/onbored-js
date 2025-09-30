@@ -1,8 +1,8 @@
-import { SessionReplayOptions } from "./session-replay/types";
+import { SessionReplayOptions } from './session-replay/types';
 
 export type UserMetadata = Record<string, any>;
 
-export type Environment = "development" | "production";
+export type Environment = 'development' | 'production';
 
 export type Storage = {
   sessionStorageKey?: string;
@@ -29,7 +29,7 @@ export type OnboredClientOptions = {
 export type FlowContext = {
   id: string;
   startedAt: number;
-  status?: "started" | "completed" | "abandoned";
+  status?: 'started' | 'completed' | 'abandoned';
   lastVisitedPath?: string;
 };
 
@@ -42,13 +42,13 @@ export type FlowContext = {
 
 export type EventType =
   | string
-  | "page_viewed"
-  | "flow_started"
-  | "flow_completed"
-  | "step_viewed"
-  | "step_skipped"
-  | "step_abandoned"
-  | "step_completed";
+  | 'page_viewed'
+  | 'flow_started'
+  | 'flow_completed'
+  | 'step_viewed'
+  | 'step_skipped'
+  | 'step_abandoned'
+  | 'step_completed';
 
 export interface EventPayload {
   id: string;
@@ -61,7 +61,7 @@ export interface EventPayload {
   timestamp: string;
   project_key: string;
   url: string;
-  referrer?: string;
+  referrer?: string | undefined;
 }
 
 // Internal types (not exported)

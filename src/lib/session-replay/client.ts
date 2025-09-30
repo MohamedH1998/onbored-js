@@ -1,8 +1,8 @@
-import { recordOptions } from "rrweb/typings/types";
-import { eventWithTime, EventType, IncrementalSource } from "@rrweb/types";
-import pako from "pako";
-import { SessionReplayOptions } from "./types";
-import { Logger } from "../logger";
+import { recordOptions } from 'rrweb/typings/types';
+import { eventWithTime, EventType, IncrementalSource } from '@rrweb/types';
+import pako from 'pako';
+import { SessionReplayOptions } from './types';
+import { Logger } from '../logger';
 
 const MAX_BYTES_PER_PAYLOAD = 900_000;
 const IDLE_TIMEOUT = 5 * 60 * 1000;
@@ -10,7 +10,7 @@ const IDLE_TIMEOUT = 5 * 60 * 1000;
 export class SessionReplayClient {
   private events: eventWithTime[] = [];
   private stopFn: (() => void) | null = null;
-  private uploadTimer: NodeJS.Timeout | null = null;
+  private uploadTimer: ReturnType<typeof setTimeout> | null = null;
   private isRecording = false;
   private isIdle = false;
   private lastActivity = Date.now();
@@ -28,13 +28,13 @@ export class SessionReplayClient {
     options: SessionReplayOptions & { sessionId: string; debug: boolean }
   ) {
     this.logger = new Logger(
-      "[Onbored - Session Recorder]",
-      options.debug ? "debug" : "info"
+      '[Onbored - Session Recorder]',
+      options.debug ? 'debug' : 'info'
     );
 
     const uploadUrl = `${options.api_host.replace(
       /\/$/,
-      ""
+      ''
     )}/ingest/session-replay`;
 
     this.options = {
@@ -42,7 +42,7 @@ export class SessionReplayClient {
       mask_inputs: true,
       block_elements: [],
       on_error: (err: Error) =>
-        console.error("[Onbored - Session Recorder]", err),
+        console.error('[Onbored - Session Recorder]', err),
       ...options,
       uploadUrl,
     };
@@ -50,18 +50,18 @@ export class SessionReplayClient {
 
   public async start(): Promise<void> {
     if (this.isRecording) {
-      this.logger.info("🏃🏽‍♂️ Already recording");
+      this.logger.info('🏃🏽‍♂️ Already recording');
       return;
     }
 
-    const rrweb = await import("rrweb");
+    const rrweb = await import('rrweb');
     this.isRecording = true;
     this.lastActivity = Date.now();
     this.hasSeenFullSnapshot = false;
 
     const recordOptions: recordOptions<eventWithTime> = {
-      emit: (event) => {
-        this.logger.debug("🧠 EMIT", {
+      emit: event => {
+        this.logger.debug('🧠 EMIT', {
           type: event.type,
           isFull: event.type === EventType.FullSnapshot,
         });
@@ -71,14 +71,14 @@ export class SessionReplayClient {
 
         if (event.type === EventType.FullSnapshot) {
           this.hasSeenFullSnapshot = true;
-          this.logger.debug("📸 FullSnapshot captured");
+          this.logger.debug('📸 FullSnapshot captured');
           this._uploadEvents(); // flush immediately once we get it
         }
 
-        this.logger.debug("💨 Event captured", { type: event.type });
+        this.logger.debug('💨 Event captured', { type: event.type });
       },
-      blockSelector: this.options.block_elements.join(","),
-      maskAllInputs: this.options.mask_inputs,
+      blockSelector: this.options.block_elements?.join(',') || '',
+      maskAllInputs: this.options.mask_inputs ?? true,
       maskInputOptions: {
         password: true,
         email: true,
@@ -90,7 +90,7 @@ export class SessionReplayClient {
       sampling: {
         mousemove: true,
         mousemoveCallback: 50,
-        input: "last",
+        input: 'last',
       },
     };
 
@@ -99,13 +99,13 @@ export class SessionReplayClient {
     // ⏱️ Fallback: if FullSnapshot hasn't been seen in 1s, force it
     setTimeout(() => {
       if (!this.hasSeenFullSnapshot) {
-        this.logger.warn("⚠️ Forcing FullSnapshot (none seen yet)");
-        (window as any).rrweb?.takeFullSnapshot?.();
+        this.logger.warn('⚠️ Forcing FullSnapshot (none seen yet)');
+        window.rrweb?.takeFullSnapshot?.();
       }
     }, 1000);
 
     this._startUploadTimer();
-    document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
   }
 
   private handleVisibilityChange = () => {
@@ -117,11 +117,11 @@ export class SessionReplayClient {
   public stop(): void {
     if (!this.isRecording) return;
 
-    this.logger.debug("🛑 Stopping session recording");
+    this.logger.debug('🛑 Stopping session recording');
     this.isRecording = false;
 
     document.removeEventListener(
-      "visibilitychange",
+      'visibilitychange',
       this.handleVisibilityChange
     );
 
@@ -151,7 +151,7 @@ export class SessionReplayClient {
   private _maybeFlushSnapshot(): void {
     const payloadSize = new Blob([JSON.stringify(this.events)]).size;
     if (payloadSize > MAX_BYTES_PER_PAYLOAD) {
-      this.logger.debug("📦 Payload exceeded max size, flushing...");
+      this.logger.debug('📦 Payload exceeded max size, flushing...');
       this._uploadEvents();
     }
   }
@@ -177,19 +177,19 @@ export class SessionReplayClient {
       this.isIdle = false;
 
       if (wasIdle) {
-        this.logger.debug("🟢 Resumed from idle");
+        this.logger.debug('🟢 Resumed from idle');
         this._forceSnapshot();
       }
     } else if (now - this.lastActivity > IDLE_TIMEOUT) {
       this.isIdle = true;
-      this.logger.debug("🟡 User is idle, pausing uploads");
+      this.logger.debug('🟡 User is idle, pausing uploads');
     }
   }
 
   private _forceSnapshot() {
-    if ((window as any).rrweb?.takeFullSnapshot) {
-      (window as any).rrweb.takeFullSnapshot();
-      this.logger.debug("📸 Forced full snapshot after idle resume");
+    if (window.rrweb?.takeFullSnapshot) {
+      window.rrweb.takeFullSnapshot();
+      this.logger.debug('📸 Forced full snapshot after idle resume');
     }
   }
 
@@ -199,7 +199,7 @@ export class SessionReplayClient {
     const eventsToUpload = [...this.events];
     this.events = [];
 
-    const lines = eventsToUpload.map((e) =>
+    const lines = eventsToUpload.map(e =>
       JSON.stringify({
         projectKey: this.projectKey,
         sessionId: this.options.sessionId,
@@ -208,16 +208,16 @@ export class SessionReplayClient {
       })
     );
 
-    const ndjson = lines.join("\n");
+    const ndjson = lines.join('\n');
 
     try {
       const compressed = pako.gzip(ndjson);
 
       await fetch(this.options.uploadUrl, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/x-ndjson",
-          "Content-Encoding": "gzip",
+          'Content-Type': 'application/x-ndjson',
+          'Content-Encoding': 'gzip',
         },
         body: compressed,
       });

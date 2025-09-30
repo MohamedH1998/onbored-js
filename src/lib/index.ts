@@ -1,15 +1,15 @@
-import { OnboredClient } from "./client";
-import { OnboredClientOptions } from "./types";
+import { OnboredClient } from './client';
+import { OnboredClientOptions } from './types';
 
 let instance: OnboredClient | null = null;
 
 export const onbored = {
   init: (config: { projectKey: string } & OnboredClientOptions) => {
-    if (typeof window === "undefined") {
-      throw new Error("[Onbored] Can only be initialized in the browser");
+    if (typeof window === 'undefined') {
+      throw new Error('[Onbored] Can only be initialized in the browser');
     }
     if (instance) {
-      console.warn("[Onbored] Already initialized");
+      console.warn('[Onbored] Already initialized');
       return;
     }
 
@@ -18,19 +18,19 @@ export const onbored = {
   },
 
   _get() {
-    if (!instance) throw new Error("[Onbored] Not initialized");
+    if (!instance) throw new Error('[Onbored] Not initialized');
     return instance;
   },
 
-  flow: (...args: Parameters<OnboredClient["flow"]>) =>
+  flow: (...args: Parameters<OnboredClient['flow']>) =>
     onbored._get().flow(...args),
-  step: (...args: Parameters<OnboredClient["step"]>) =>
+  step: (...args: Parameters<OnboredClient['step']>) =>
     onbored._get().step(...args),
-  skip: (...args: Parameters<OnboredClient["skip"]>) =>
+  skip: (...args: Parameters<OnboredClient['skip']>) =>
     onbored._get().skip(...args),
-  completed: (...args: Parameters<OnboredClient["completed"]>) =>
+  completed: (...args: Parameters<OnboredClient['completed']>) =>
     onbored._get().completed(...args),
-  capture: (...args: Parameters<OnboredClient["capture"]>) =>
+  capture: (...args: Parameters<OnboredClient['capture']>) =>
     onbored._get().capture(...args),
   reset: () => onbored._get().reset(),
 };

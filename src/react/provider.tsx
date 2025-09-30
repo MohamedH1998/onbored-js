@@ -1,7 +1,7 @@
-"use client";
-import React, { useEffect } from "react";
-import { onbored } from "../lib"; // adjust path as needed
-import type { OnboredClientOptions } from "../lib/types";
+'use client';
+import React, { useEffect } from 'react';
+import { onbored } from '../lib';
+import type { OnboredClientOptions } from '../lib/types';
 
 interface OnboredProviderProps {
   children: React.ReactNode;
@@ -15,10 +15,11 @@ export function OnboredProvider({ children, config }: OnboredProviderProps) {
     try {
       onbored.init(config);
     } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.warn("[OnboredProvider] Failed to initialize:", err);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[OnboredProvider] Failed to initialize:', err);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.projectKey]);
 
   return <>{children}</>;

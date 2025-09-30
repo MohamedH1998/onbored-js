@@ -1,4 +1,4 @@
-import { OnboredClientOptions } from "./types";
+import { OnboredClientOptions } from './types';
 
 export function applySettingDefaults(
   options: OnboredClientOptions = {},
@@ -38,5 +38,5 @@ export function isValidUUID(uuid: string): boolean {
 }
 
 export function sanitize(input: string): string {
-  return input.replace(/[<>"'`]/g, "");
+  return input.replace(/[<>"'`]/g, '');
 }

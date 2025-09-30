@@ -1,11 +1,12 @@
 {
-  "name": "@momito/onbored-js",
-  "version": "0.1.0-beta.4",
-  "description": "Session replay SDK for OnBored",
+  "name": "onbored-js",
+  "version": "0.1.0-alpha.1",
+  "description": "SDK for OnBored",
   "private": false,
   "publishConfig": {
     "access": "public"
   },
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -19,7 +20,14 @@
   ],
   "scripts": {
     "build": "tsup src/index.ts",
-    "dev": "tsup src/index.ts --watch"
+    "dev": "tsup src/index.ts --watch",
+    "lint": "eslint src --ext .ts,.tsx --fix",
+    "lint:check": "eslint src --ext .ts,.tsx",
+    "format": "prettier --write src/**/*.{ts,tsx}",
+    "format:check": "prettier --check src/**/*.{ts,tsx}",
+    "type-check": "tsc --noEmit",
+    "check-all": "pnpm run type-check && pnpm run lint:check && pnpm run format:check",
+    "prepare": "husky"
   },
   "dependencies": {
     "@rrweb/types": "2.0.0-alpha.18",
@@ -32,9 +40,24 @@
     "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.0.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "@eslint/js": "^9.36.0",
     "@types/node": "^22.15.29",
     "@types/pako": "^2.0.3",
     "@types/react": "^19.1.6",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.3",
+    "prettier": "^3.6.2",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3"
   },
@@ -45,5 +68,14 @@
     "analytics"
   ],
   "license": "MIT",
-  "packageManager": "pnpm@10.9.0"
+  "packageManager": "pnpm@10.9.0",
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "src/**/*.{js,jsx,json}": [
+      "prettier --write"
+    ]
+  }
 }
