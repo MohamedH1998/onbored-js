@@ -3,12 +3,12 @@ import { DEFAULT_GLOBAL_OPTIONS } from './constants';
 import { applySettingDefaults, isValidUUID, sanitize } from './helpers';
 import { Logger } from './logger';
 import {
-  Environment,
   FlowContext,
   OnboredClientOptions,
   EventPayload,
   RetryEvent,
   EventType,
+  Options,
 } from './types';
 import { eventPayloadSchema } from './schema';
 import { SessionReplayOptions } from './session-replay/types';
@@ -22,7 +22,7 @@ import { createSessionReplay } from './session-replay';
  */
 export class OnboredClient {
   protected logger: Logger;
-  protected env: Environment;
+  protected env: string;
   protected debug: boolean;
   protected userId: string;
   protected sessionId: string;
@@ -35,7 +35,6 @@ export class OnboredClient {
   protected headers: Record<string, string>;
   protected sessionReplay: false | SessionReplayOptions;
   protected recorder: SessionReplayClient | null = null;
-  // protected fetch: Fetch;
 
   private initPromise: Promise<void>;
   private isInitializing = true;
@@ -53,7 +52,7 @@ export class OnboredClient {
 
   protected queuedStepViews: Array<{
     stepName: string;
-    options: { slug: string } & Record<string, any>;
+    options: { slug: string } & Options;
   }> = [];
 
   // Cleanup properties
@@ -102,7 +101,6 @@ export class OnboredClient {
       storage: DEFAULT_STORAGE_OPTIONS,
     };
 
-    // TODO: Double check this, can storage options be overridden?
     const settings = applySettingDefaults(options, DEFAULTS);
 
     this.userId = settings.user_id ?? '';
@@ -443,10 +441,7 @@ export class OnboredClient {
     sessionStorage.setItem(`${this.flowContextStorageKey}_last_path`, path);
   }
 
-  private _viewStep(
-    stepName: string,
-    options: { slug: string } & Record<string, any>
-  ) {
+  private _viewStep(stepName: string, options: { slug: string } & Options) {
     const context = this._getFlowContext(options.slug);
 
     if (!context) {
@@ -604,14 +599,11 @@ export class OnboredClient {
     });
   }
 
-  async step(
-    stepName: string,
-    options: { slug: string } & Record<string, any>
-  ) {
+  async step(stepName: string, options: { slug: string } & Options) {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) {
-      console.log('🔴 - no context in this step', stepName);
+      this.logger.warn('No context in this step', stepName);
       // this.queuedStepViews.push({ stepName, options });
       return;
     }
@@ -629,10 +621,7 @@ export class OnboredClient {
     this.logger.debug(`Step started: ${stepName} (flow: ${options.slug})`);
   }
 
-  async skip(
-    stepName: string,
-    options: { slug: string } & Record<string, any>
-  ) {
+  async skip(stepName: string, options: { slug: string } & Options) {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) return;
@@ -649,7 +638,7 @@ export class OnboredClient {
     this.logger.debug(`Step completed: ${stepName} (flow: ${options.slug})`);
   }
 
-  async completed(options: { slug: string } & Record<string, any>) {
+  async completed(options: { slug: string } & Options) {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) return;

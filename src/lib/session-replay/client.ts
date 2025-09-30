@@ -4,6 +4,14 @@ import pako from 'pako';
 import { SessionReplayOptions } from './types';
 import { Logger } from '../logger';
 
+declare global {
+  interface Window {
+    rrweb?: {
+      takeFullSnapshot?: () => void;
+    };
+  }
+}
+
 const MAX_BYTES_PER_PAYLOAD = 900_000;
 const IDLE_TIMEOUT = 5 * 60 * 1000;
 
@@ -28,7 +36,7 @@ export class SessionReplayClient {
     options: SessionReplayOptions & { sessionId: string; debug: boolean }
   ) {
     this.logger = new Logger(
-      '[Onbored - Session Recorder]',
+      '[Session Recorder]',
       options.debug ? 'debug' : 'info'
     );
 
@@ -41,8 +49,7 @@ export class SessionReplayClient {
       flush_interval: 10_000,
       mask_inputs: true,
       block_elements: [],
-      on_error: (err: Error) =>
-        console.error('[Onbored - Session Recorder]', err),
+      on_error: (err: Error) => console.error(err),
       ...options,
       uploadUrl,
     };
@@ -50,7 +57,7 @@ export class SessionReplayClient {
 
   public async start(): Promise<void> {
     if (this.isRecording) {
-      this.logger.info('🏃🏽‍♂️ Already recording');
+      this.logger.info('Already recording');
       return;
     }
 
@@ -61,7 +68,7 @@ export class SessionReplayClient {
 
     const recordOptions: recordOptions<eventWithTime> = {
       emit: event => {
-        this.logger.debug('🧠 EMIT', {
+        this.logger.debug('EMIT', {
           type: event.type,
           isFull: event.type === EventType.FullSnapshot,
         });
@@ -71,11 +78,13 @@ export class SessionReplayClient {
 
         if (event.type === EventType.FullSnapshot) {
           this.hasSeenFullSnapshot = true;
-          this.logger.debug('📸 FullSnapshot captured');
+          this.logger.debug('FullSnapshot captured');
           this._uploadEvents(); // flush immediately once we get it
         }
 
-        this.logger.debug('💨 Event captured', { type: event.type });
+        this.logger.debug('Event captured', {
+          type: event.type,
+        });
       },
       blockSelector: this.options.block_elements?.join(',') || '',
       maskAllInputs: this.options.mask_inputs ?? true,
@@ -96,10 +105,8 @@ export class SessionReplayClient {
 
     this.stopFn = rrweb.record(recordOptions) as (() => void) | null;
 
-    // ⏱️ Fallback: if FullSnapshot hasn't been seen in 1s, force it
     setTimeout(() => {
       if (!this.hasSeenFullSnapshot) {
-        this.logger.warn('⚠️ Forcing FullSnapshot (none seen yet)');
         window.rrweb?.takeFullSnapshot?.();
       }
     }, 1000);
@@ -117,7 +124,7 @@ export class SessionReplayClient {
   public stop(): void {
     if (!this.isRecording) return;
 
-    this.logger.debug('🛑 Stopping session recording');
+    this.logger.debug('Stopping session recording');
     this.isRecording = false;
 
     document.removeEventListener(
@@ -151,7 +158,7 @@ export class SessionReplayClient {
   private _maybeFlushSnapshot(): void {
     const payloadSize = new Blob([JSON.stringify(this.events)]).size;
     if (payloadSize > MAX_BYTES_PER_PAYLOAD) {
-      this.logger.debug('📦 Payload exceeded max size, flushing...');
+      this.logger.debug('Payload exceeded max size, flushing...');
       this._uploadEvents();
     }
   }
@@ -177,19 +184,16 @@ export class SessionReplayClient {
       this.isIdle = false;
 
       if (wasIdle) {
-        this.logger.debug('🟢 Resumed from idle');
         this._forceSnapshot();
       }
     } else if (now - this.lastActivity > IDLE_TIMEOUT) {
       this.isIdle = true;
-      this.logger.debug('🟡 User is idle, pausing uploads');
     }
   }
 
   private _forceSnapshot() {
     if (window.rrweb?.takeFullSnapshot) {
       window.rrweb.takeFullSnapshot();
-      this.logger.debug('📸 Forced full snapshot after idle resume');
     }
   }
 

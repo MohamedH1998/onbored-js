@@ -1,8 +1,9 @@
+import { DEFAULT_GLOBAL_OPTIONS } from './constants';
 import { OnboredClientOptions } from './types';
 
 export function applySettingDefaults(
   options: OnboredClientOptions = {},
-  defaults: OnboredClientOptions = {}
+  defaults: OnboredClientOptions = DEFAULT_GLOBAL_OPTIONS
 ) {
   const result = {
     ...defaults,

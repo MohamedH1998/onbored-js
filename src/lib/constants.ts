@@ -1,9 +1,7 @@
-// constants.ts
 import { version } from './version';
 
 let JS_ENV = '';
-// Check for Deno environment
-if (typeof (globalThis as any).Deno !== 'undefined') {
+if (typeof (globalThis as unknown as { Deno: unknown }).Deno !== 'undefined') {
   JS_ENV = 'deno';
 } else if (typeof document !== 'undefined') {
   JS_ENV = 'web';
@@ -23,6 +21,10 @@ export const DEFAULT_HEADERS = {
 
 export const DEFAULT_GLOBAL_OPTIONS = {
   headers: DEFAULT_HEADERS,
+  // TODO: update api_host to use real api
+  api_host: 'https://api.onbored.com',
+  env: 'production',
+  debug: false,
   intervals: {
     retry: 5000, // 5 seconds
   },

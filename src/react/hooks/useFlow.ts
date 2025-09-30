@@ -1,7 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { onbored } from '../../lib';
-
-type StepOptions = Record<string, unknown>;
+import { Options } from '../../lib/types';
 
 export function useFlow(slug: string) {
   useEffect(() => {
@@ -20,7 +19,7 @@ export function useFlow(slug: string) {
   }, [slug]);
 
   const step = useCallback(
-    (stepName: string, options: StepOptions = {}) => {
+    (stepName: string, options: Options = {}) => {
       try {
         onbored.step(stepName, { slug, ...options });
       } catch (error) {
@@ -31,7 +30,7 @@ export function useFlow(slug: string) {
   );
 
   const skip = useCallback(
-    (stepName: string, options: StepOptions = {}) => {
+    (stepName: string, options: Options = {}) => {
       try {
         onbored.skip(stepName, { slug, ...options });
       } catch (error) {
@@ -42,7 +41,7 @@ export function useFlow(slug: string) {
   );
 
   const complete = useCallback(
-    (options: StepOptions = {}) => {
+    (options: Options = {}) => {
       try {
         onbored.completed({ slug, ...options });
       } catch (error) {

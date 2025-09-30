@@ -2,7 +2,7 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export class Logger {
   constructor(
-    private prefix: string = '',
+    private prefix: string = 'Onbored',
     private level: LogLevel = 'info'
   ) {}
 
