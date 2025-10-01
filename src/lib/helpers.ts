@@ -9,8 +9,8 @@ export function applySettingDefaults(
     ...defaults,
     ...options,
     storage: {
-      ...options?.storage,
       ...defaults?.storage,
+      ...options?.storage,
     },
     session_replay:
       options.session_replay === false
@@ -20,11 +20,11 @@ export function applySettingDefaults(
             ...options?.session_replay,
           },
     global: {
-      ...options?.global,
       ...defaults?.global,
+      ...options?.global,
       headers: {
-        ...options.global?.headers,
         ...defaults.global?.headers,
+        ...options.global?.headers,
       },
     },
   };

@@ -12,15 +12,18 @@ interface OnboredProviderProps {
 
 export function OnboredProvider({ children, config }: OnboredProviderProps) {
   useEffect(() => {
+    if (!config) {
+      console.warn('[OnboredProvider] Failed to initialize:', new Error('Config is required'));
+      return;
+    }
+
     try {
       onbored.init(config);
     } catch (err) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[OnboredProvider] Failed to initialize:', err);
-      }
+      console.warn('[OnboredProvider] Failed to initialize:', err);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.projectKey]);
+  }, [config?.projectKey]);
 
   return <>{children}</>;
 }

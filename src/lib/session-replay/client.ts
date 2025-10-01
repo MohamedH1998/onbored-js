@@ -68,23 +68,16 @@ export class SessionReplayClient {
 
     const recordOptions: recordOptions<eventWithTime> = {
       emit: event => {
-        this.logger.debug('EMIT', {
-          type: event.type,
-          isFull: event.type === EventType.FullSnapshot,
-        });
         this.events.push(event);
         this._checkIdle(event);
         this._maybeFlushSnapshot();
 
         if (event.type === EventType.FullSnapshot) {
           this.hasSeenFullSnapshot = true;
-          this.logger.debug('FullSnapshot captured');
           this._uploadEvents(); // flush immediately once we get it
         }
 
-        this.logger.debug('Event captured', {
-          type: event.type,
-        });
+        this.logger.debug('Event captured');
       },
       blockSelector: this.options.block_elements?.join(',') || '',
       maskAllInputs: this.options.mask_inputs ?? true,
@@ -145,6 +138,16 @@ export class SessionReplayClient {
 
   public clearEvents(): void {
     this.events = [];
+  }
+
+  public addCustomEvent(tag: string, payload: any): void {
+    const event: eventWithTime = {
+      type: EventType.Custom,
+      data: { tag, payload },
+      timestamp: Date.now(),
+    };
+    this.events.push(event);
+    this.logger.debug('Custom event added', { tag, payload });
   }
 
   private _startUploadTimer(): void {

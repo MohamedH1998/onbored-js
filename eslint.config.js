@@ -6,7 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import prettier from 'eslint-plugin-prettier';
 import prettierConfig from 'eslint-config-prettier';
-import globals from 'globals'
+import globals from 'globals';
 
 export default [
   {
@@ -31,7 +31,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': typescript,
-      react,  
+      react,
       'react-hooks': reactHooks,
       'jsx-a11y': jsxA11y,
       prettier,
@@ -46,6 +46,50 @@ export default [
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
+      'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
+      'prettier/prettier': 'error',
+    },
+    settings: {
+      react: {
+        version: 'detect',
+      },
+    },
+  },
+  // Add this new configuration for test files
+  {
+    files: [
+      'tests/**/*.{js,ts,tsx}',
+      '**/*.test.{js,ts,tsx}',
+      '**/*.spec.{js,ts,tsx}',
+      'src/__tests__/**/*.{js,ts,tsx}',
+    ],
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+        ...globals.browser,
+      },
+    },
+    plugins: {
+      '@typescript-eslint': typescript,
+      react,
+      'react-hooks': reactHooks,
+      'jsx-a11y': jsxA11y,
+      prettier,
+    },
+    rules: {
+      ...prettierConfig.rules,
+      '@typescript-eslint/no-explicit-any': 'off', // Allow any in tests
+      '@typescript-eslint/no-unused-vars': 'off', // Allow unused vars in tests
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
       'prettier/prettier': 'error',

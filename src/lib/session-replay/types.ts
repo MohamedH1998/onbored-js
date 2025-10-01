@@ -8,6 +8,7 @@ export type SessionReplayOptions = {
 
 export type SessionReplayEvent = {
   type: number;
+  // @TODO: add type
   data: any;
   timestamp: number;
 };

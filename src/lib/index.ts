@@ -33,4 +33,11 @@ export const onbored = {
   capture: (...args: Parameters<OnboredClient['capture']>) =>
     onbored._get().capture(...args),
   reset: () => onbored._get().reset(),
+  destroy: () => onbored._get().destroy(),
+  
+  // Debug methods for testing
+  _getEvents: () => onbored._get()._getEvents(),
+  _getFlowContext: (slug: string) => onbored._get()._getFlowContext(slug),
+  _getRecorder: () => onbored._get()._getRecorder(),
+  _getRecorderEvents: () => onbored._get()._getRecorderEvents(),
 };
