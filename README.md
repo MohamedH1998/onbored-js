@@ -870,7 +870,7 @@ MIT © [Onbored](https://onbored.io)
 Need help? Reach out:
 
 - 📧 Email: info@onbored.io
-- 🐦 Twitter: [@onbored](https://twitter.com/momito)
+- 🐦 Twitter: [@momito](https://twitter.com/momito)
 
 ---
 
