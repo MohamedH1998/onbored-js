@@ -1,5 +1,5 @@
-import { SessionReplayClient } from "./client";
-import { SessionReplayOptions } from "./types";
+import { SessionReplayClient } from './client';
+import { SessionReplayOptions } from './types';
 
 export async function createSessionReplay(
   projectKey: string,

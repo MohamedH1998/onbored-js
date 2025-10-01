@@ -8,7 +8,16 @@
       "moduleResolution": "node",
       "esModuleInterop": true,
       "skipLibCheck": true,
-      "strict": true
+      "strict": true,
+      "noImplicitAny": true,
+      "strictNullChecks": true,
+      "strictFunctionTypes": true,
+      "strictBindCallApply": true,
+      "strictPropertyInitialization": true,
+      "noFallthroughCasesInSwitch": true,
+      "noUncheckedIndexedAccess": true,
+      "exactOptionalPropertyTypes": true,
+      "types": ["jest", "@testing-library/jest-dom", "node"]
     },
-    "include": ["src"]
+    "include": ["src", "src/__tests__/**/*.d.ts"]
   }

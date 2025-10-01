@@ -1,11 +1,10 @@
-import { useEffect, useCallback } from "react";
-import { onbored } from "../../lib";
-
-type StepOptions = Record<string, any>;
+import { useEffect, useCallback } from 'react';
+import { onbored } from '../../lib';
+import { Options } from '../../lib/types';
 
 export function useFlow(slug: string) {
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
 
     const checkInit = () => {
       try {
@@ -20,33 +19,33 @@ export function useFlow(slug: string) {
   }, [slug]);
 
   const step = useCallback(
-    (stepName: string, options: StepOptions = {}) => {
+    (stepName: string, options: Options = {}) => {
       try {
         onbored.step(stepName, { slug, ...options });
       } catch (error) {
-        console.warn("[useFlow] SDK not initialized yet:", error);
+        console.warn('[useFlow] SDK not initialized yet:', error);
       }
     },
     [slug]
   );
 
   const skip = useCallback(
-    (stepName: string, options: StepOptions = {}) => {
+    (stepName: string, options: Options = {}) => {
       try {
         onbored.skip(stepName, { slug, ...options });
       } catch (error) {
-        console.warn("[useFlow] SDK not initialized yet:", error);
+        console.warn('[useFlow] SDK not initialized yet:', error);
       }
     },
     [slug]
   );
 
   const complete = useCallback(
-    (options: StepOptions = {}) => {
+    (options: Options = {}) => {
       try {
-        onbored.completed({ slug, ...options });
+        onbored.complete({ slug, ...options });
       } catch (error) {
-        console.warn("[useFlow] SDK not initialized yet:", error);
+        console.warn('[useFlow] SDK not initialized yet:', error);
       }
     },
     [slug]

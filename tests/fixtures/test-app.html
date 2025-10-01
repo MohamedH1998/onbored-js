@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OnBored SDK Test App</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .button:hover {
+            background: #0056b3;
+        }
+        .button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .event-log {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .step-element {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            border-left: 4px solid #2196f3;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+    <script src="/dist/index.global.js"></script>
+    <script>
+        // Expose onbored from the IIFE bundle
+        window.onbored = OnBored.onbored;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>OnBored SDK Test App</h1>
+        
+        <div class="status" id="status">
+            SDK Status: <span id="sdk-status">Not initialized</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="project-key">Project Key:</label>
+            <input type="text" id="project-key" value="test-project-key" placeholder="Enter project key">
+        </div>
+        
+        <div class="form-group">
+            <label for="user-id">User ID:</label>
+            <input type="text" id="user-id" value="test-user-123" placeholder="Enter user ID">
+        </div>
+        
+        <div class="form-group">
+            <label for="env">Environment:</label>
+            <select id="env">
+                <option value="development">Development</option>
+                <option value="production">Production</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="debug" checked> Debug Mode
+            </label>
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="session-replay"> Session Replay
+            </label>
+        </div>
+        
+        <button class="button" id="init-sdk">Initialize SDK</button>
+        <button class="button" id="destroy-sdk">Destroy SDK</button>
+        <button class="button" id="reset-sdk">Reset SDK</button>
+        
+        <hr>
+        
+        <h2>Flow Management</h2>
+        <button class="button" id="start-onboarding">Start Onboarding Flow</button>
+        <button class="button" id="start-checkout">Start Checkout Flow</button>
+        <button class="button" id="start-signup">Start Signup Flow</button>
+        
+        <hr>
+        
+        <h2>Step Management</h2>
+        <div class="step-element" data-onbored-step="welcome" data-onbored-funnel="onboarding">
+            <h3>Welcome Step</h3>
+            <p>This is the welcome step for the onboarding flow.</p>
+            <button class="button" id="complete-welcome">Complete Welcome</button>
+            <button class="button" id="skip-welcome">Skip Welcome</button>
+        </div>
+        
+        <div class="step-element" data-onbored-step="form" data-onbored-funnel="onboarding">
+            <h3>Form Step</h3>
+            <p>This is the form step for the onboarding flow.</p>
+            <button class="button" id="complete-form">Complete Form</button>
+            <button class="button" id="skip-form">Skip Form</button>
+        </div>
+        
+        <div class="step-element" data-onbored-step="confirmation" data-onbored-funnel="onboarding">
+            <h3>Confirmation Step</h3>
+            <p>This is the confirmation step for the onboarding flow.</p>
+            <button class="button" id="complete-confirmation">Complete Confirmation</button>
+            <button class="button" id="skip-confirmation">Skip Confirmation</button>
+        </div>
+        
+        <hr>
+        
+        <h2>Event Capture</h2>
+        <button class="button" id="capture-custom">Capture Custom Event</button>
+        <button class="button" id="capture-page-view">Capture Page View</button>
+        <button class="button" id="capture-user-action">Capture User Action</button>
+        
+        <hr>
+        
+        <h2>Session Replay</h2>
+        <button class="button" id="start-recording">Start Recording</button>
+        <button class="button" id="stop-recording">Stop Recording</button>
+        <button class="button" id="take-snapshot">Take Snapshot</button>
+        
+        <hr>
+        
+        <h2>Event Log</h2>
+        <button class="button" id="clear-log">Clear Log</button>
+        <button class="button" id="export-events">Export Events</button>
+        <div class="event-log" id="event-log"></div>
+        
+        <hr>
+        
+        <h2>Test Controls</h2>
+        <button class="button" id="simulate-error">Simulate Error</button>
+        <button class="button" id="simulate-offline">Simulate Offline</button>
+        <button class="button" id="simulate-online">Simulate Online</button>
+        <button class="button" id="simulate-slow-network">Simulate Slow Network</button>
+    </div>
+
+    <script>
+        // Global test state
+        window.testState = {
+            sdk: null,
+            events: [],
+            recorder: null,
+        };
+        
+        // Test utilities
+        window.testUtils = {
+            log: (message) => {
+                const log = document.getElementById('event-log');
+                const timestamp = new Date().toISOString();
+                log.innerHTML += `[${timestamp}] ${message}\n`;
+                log.scrollTop = log.scrollHeight;
+            },
+            
+            updateStatus: (status) => {
+                document.getElementById('sdk-status').textContent = status;
+            },
+            
+            getConfig: () => ({
+                projectKey: document.getElementById('project-key').value,
+                user_id: document.getElementById('user-id').value,
+                env: document.getElementById('env').value,
+                debug: document.getElementById('debug').checked,
+                session_replay: document.getElementById('session-replay').checked ? {
+                    api_host: 'http://localhost:3000',
+                    sessionId: 'test-session',
+                } : false,
+            }),
+        };
+        
+        // Event handlers
+        document.getElementById('init-sdk').addEventListener('click', () => {
+            try {
+                const config = window.testUtils.getConfig();
+                window.onbored.init(config);
+                window.testState.sdk = window.onbored;
+                window.testUtils.updateStatus('Initialized');
+                window.testUtils.log('SDK initialized with config: ' + JSON.stringify(config));
+            } catch (error) {
+                window.testUtils.log('SDK initialization failed: ' + error.message);
+            }
+        });
+        
+        document.getElementById('destroy-sdk').addEventListener('click', () => {
+            try {
+                if (window.testState.sdk) {
+                    window.testState.sdk.destroy();
+                    window.testState.sdk = null;
+                    window.testUtils.updateStatus('Destroyed');
+                    window.testUtils.log('SDK destroyed');
+                }
+            } catch (error) {
+                window.testUtils.log('SDK destruction failed: ' + error.message);
+            }
+        });
+        
+        document.getElementById('reset-sdk').addEventListener('click', () => {
+            try {
+                if (window.testState.sdk) {
+                    window.testState.sdk.reset();
+                    window.testUtils.log('SDK reset');
+                }
+            } catch (error) {
+                window.testUtils.log('SDK reset failed: ' + error.message);
+            }
+        });
+        
+        // Flow management
+        document.getElementById('start-onboarding').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.flow('onboarding');
+                window.testUtils.log('Started onboarding flow');
+            }
+        });
+        
+        document.getElementById('start-checkout').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.flow('checkout');
+                window.testUtils.log('Started checkout flow');
+            }
+        });
+        
+        document.getElementById('start-signup').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.flow('signup');
+                window.testUtils.log('Started signup flow');
+            }
+        });
+        
+        // Step management
+        document.getElementById('complete-welcome').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.step('welcome', { slug: 'onboarding' });
+                window.testUtils.log('Completed welcome step');
+            }
+        });
+        
+        document.getElementById('skip-welcome').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.skip('welcome', { slug: 'onboarding' });
+                window.testUtils.log('Skipped welcome step');
+            }
+        });
+        
+        document.getElementById('complete-form').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.step('form', { slug: 'onboarding' });
+                window.testUtils.log('Completed form step');
+            }
+        });
+        
+        document.getElementById('skip-form').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.skip('form', { slug: 'onboarding' });
+                window.testUtils.log('Skipped form step');
+            }
+        });
+        
+        document.getElementById('complete-confirmation').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.step('confirmation', { slug: 'onboarding' });
+                window.testState.sdk.complete({ slug: 'onboarding' });
+                window.testUtils.log('Completed confirmation step and flow');
+            }
+        });
+        
+        document.getElementById('skip-confirmation').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.skip('confirmation', { slug: 'onboarding' });
+                window.testUtils.log('Skipped confirmation step');
+            }
+        });
+        
+        // Event capture
+        document.getElementById('capture-custom').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.capture('custom_event', { 
+                    data: 'test data',
+                    timestamp: Date.now(),
+                });
+                window.testUtils.log('Captured custom event');
+            }
+        });
+        
+        document.getElementById('capture-page-view').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.capture('page_viewed', {
+                    url: window.location.href,
+                    title: document.title,
+                });
+                window.testUtils.log('Captured page view');
+            }
+        });
+        
+        document.getElementById('capture-user-action').addEventListener('click', () => {
+            if (window.testState.sdk) {
+                window.testState.sdk.capture('user_action', {
+                    action: 'button_click',
+                    element: 'capture-user-action',
+                });
+                window.testUtils.log('Captured user action');
+            }
+        });
+        
+        // Session replay
+        document.getElementById('start-recording').addEventListener('click', () => {
+            if (window.testState.sdk && window.testState.sdk._getRecorder) {
+                window.testState.recorder = window.testState.sdk._getRecorder();
+                window.testUtils.log('Started recording');
+            }
+        });
+        
+        document.getElementById('stop-recording').addEventListener('click', () => {
+            if (window.testState.recorder) {
+                window.testState.recorder.stop();
+                window.testState.recorder = null;
+                window.testUtils.log('Stopped recording');
+            }
+        });
+        
+        document.getElementById('take-snapshot').addEventListener('click', () => {
+            if (window.testState.recorder) {
+                window.testState.recorder.takeFullSnapshot();
+                window.testUtils.log('Took snapshot');
+            }
+        });
+        
+        // Test controls
+        document.getElementById('simulate-error').addEventListener('click', () => {
+            throw new Error('Test error');
+        });
+        
+        document.getElementById('simulate-offline').addEventListener('click', () => {
+            Object.defineProperty(navigator, 'onLine', {
+                value: false,
+                writable: true,
+            });
+            window.dispatchEvent(new Event('offline'));
+            window.testUtils.log('Simulated offline');
+        });
+        
+        document.getElementById('simulate-online').addEventListener('click', () => {
+            Object.defineProperty(navigator, 'onLine', {
+                value: true,
+                writable: true,
+            });
+            window.dispatchEvent(new Event('online'));
+            window.testUtils.log('Simulated online');
+        });
+        
+        document.getElementById('simulate-slow-network').addEventListener('click', () => {
+            // Mock slow network
+            const originalFetch = window.fetch;
+            window.fetch = (...args) => {
+                return new Promise(resolve => {
+                    setTimeout(() => {
+                        resolve(originalFetch(...args));
+                    }, 2000);
+                });
+            };
+            window.testUtils.log('Simulated slow network');
+        });
+        
+        // Utility functions
+        document.getElementById('clear-log').addEventListener('click', () => {
+            document.getElementById('event-log').innerHTML = '';
+        });
+        
+        document.getElementById('export-events').addEventListener('click', () => {
+            if (window.testState.sdk && window.testState.sdk._getEvents) {
+                const events = window.testState.sdk._getEvents();
+                const blob = new Blob([JSON.stringify(events, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'onbored-events.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                window.testUtils.log('Exported events');
+            }
+        });
+        
+        // Initialize on load
+        window.addEventListener('load', () => {
+            window.testUtils.log('Test app loaded');
+        });
+    </script>
+</body>
+</html>

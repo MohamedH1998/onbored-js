@@ -1,28 +1,29 @@
-import { v4 as uuidv4 } from "uuid";
-import { DEFAULT_GLOBAL_OPTIONS } from "./constants";
-import { applySettingDefaults, isValidUUID, sanitize } from "./helpers";
-import { Logger } from "./logger";
+import { v4 as uuidv4 } from 'uuid';
+import { DEFAULT_GLOBAL_OPTIONS } from './constants';
+import { applySettingDefaults, isValidUUID, sanitize } from './helpers';
+import { Logger } from './logger';
 import {
-  Environment,
   FlowContext,
   OnboredClientOptions,
   EventPayload,
   RetryEvent,
   EventType,
-} from "./types";
-import { eventPayloadSchema } from "./schema";
-import { SessionReplayOptions } from "./session-replay/types";
-import { SessionReplayClient } from "./session-replay/client";
-import { createSessionReplay } from "./session-replay";
+  Options,
+  OnboredClientInterface,
+} from './types';
+import { eventPayloadSchema } from './schema';
+import { SessionReplayOptions } from './session-replay/types';
+import { SessionReplayClient } from './session-replay/client';
+import { createSessionReplay } from './session-replay';
 
 /**
  * OnBored Client.
  *
  * An isomorphic Javascript client for interacting with OnBored.
  */
-export class OnboredClient {
+export class OnboredClient implements OnboredClientInterface {
   protected logger: Logger;
-  protected env: Environment;
+  protected env: string;
   protected debug: boolean;
   protected userId: string;
   protected sessionId: string;
@@ -35,7 +36,6 @@ export class OnboredClient {
   protected headers: Record<string, string>;
   protected sessionReplay: false | SessionReplayOptions;
   protected recorder: SessionReplayClient | null = null;
-  // protected fetch: Fetch;
 
   private initPromise: Promise<void>;
   private isInitializing = true;
@@ -53,7 +53,7 @@ export class OnboredClient {
 
   protected queuedStepViews: Array<{
     stepName: string;
-    options: { slug: string } & Record<string, any>;
+    options: { slug: string } & Options;
   }> = [];
 
   // Cleanup properties
@@ -79,82 +79,101 @@ export class OnboredClient {
    * @param options.storage The storage options.
    * @param options.global The global options.
    */
-  constructor(protected projectKey: string, options?: OnboredClientOptions) {
-    if (!projectKey) throw new Error("[Onbored]: projectKey is required.");
+  constructor(
+    protected projectKey: string,
+    options?: OnboredClientOptions
+  ) {
+    if (!projectKey) throw new Error('[Onbored]: projectKey is required.');
+    if (
+      typeof globalThis.window === 'undefined' ||
+      typeof globalThis.document === 'undefined'
+    ) {
+      throw new Error(
+        '[Onbored]: OnboredClient can only be initialized in a browser environment.'
+      );
+    }
 
     this.projectKey = projectKey;
-    this.sessionId = this._getSessionId();
+
+    const settings = applySettingDefaults(options, {
+      global: DEFAULT_GLOBAL_OPTIONS,
+      storage: {
+        sessionStorageKey: `ob-session-${this.projectKey}`,
+        activityStorageKey: `ob-activity-${this.projectKey}`,
+        flowContextStorageKey: `ob-flow-context-${this.projectKey}`,
+      },
+    });
+
+    this.debug = settings.debug ?? false;
+    this.logger = new Logger('[Onbored]', this.debug ? 'debug' : 'info');
+
     this.sessionTimeoutMs = 30 * 60 * 1000; // 30 minutes
     this.flowContext = new Map<string, FlowContext>();
 
-    // default storage keys use the onboard project key as a namespace
-    const DEFAULT_STORAGE_OPTIONS = {
-      sessionStorageKey: `ob-session-${this.projectKey}`,
-      activityStorageKey: `ob-activity-${this.projectKey}`,
-      flowContextStorageKey: `ob-flow-context-${this.projectKey}`,
-    };
+    this.userId = settings.user_id ?? '';
+    this.env = settings.env ?? 'production';
+    this.api_host = settings.api_host ?? 'https://api.onbored.com';
+    this.sessionStorageKey = settings.storage.sessionStorageKey ?? '';
+    this.activityStorageKey = settings.storage.activityStorageKey ?? '';
+    this.flowContextStorageKey = settings.storage.flowContextStorageKey ?? '';
 
-    const DEFAULTS = {
-      global: DEFAULT_GLOBAL_OPTIONS,
-      storage: DEFAULT_STORAGE_OPTIONS,
-    };
-
-    // TODO: Double check this, can storage options be overridden?
-    const settings = applySettingDefaults(options, DEFAULTS);
-
-    this.userId = settings.user_id ?? "";
-    this.env = settings.env ?? "production";
-    this.debug = settings.debug ?? false;
-    this.api_host = settings.api_host ?? "https://api.onbored.com";
-    this.sessionStorageKey = settings.storage.sessionStorageKey ?? "";
-    this.activityStorageKey = settings.storage.activityStorageKey ?? "";
-    this.flowContextStorageKey = settings.storage.flowContextStorageKey ?? "";
+    // Get session ID AFTER storage keys are set
+    this.sessionId = this._getOrSetSessionId();
     this.headers = settings.global.headers ?? {};
-    // @ts-ignore
-    this.sessionReplay = settings.session_replay ?? false;
+    this.sessionReplay =
+      settings.session_replay === true
+        ? false
+        : settings.session_replay &&
+            typeof settings.session_replay === 'object' &&
+            'api_host' in settings.session_replay
+          ? (settings.session_replay as SessionReplayOptions)
+          : false;
     // this.fetch = settings.global.fetch ?? fetch;
-
-    this.logger = new Logger("[Onbored]", this.debug ? "debug" : "info");
 
     this._restoreFlowContextFromStorage();
     this._startRetryLoop();
     this.initPromise = this._init();
 
     // Global flush function for debugging
-    if (this.env === "development" && typeof window !== "undefined") {
-      (window as any).__onboredFlush = () => this._flush();
+    if (this.env === 'development' && typeof window !== 'undefined') {
+      (window as Window & { __onboredFlush?: () => void }).__onboredFlush =
+        () => this._flush();
     }
   }
 
   private async _init() {
-    if (this.env === "development") {
-      this.logger.info("Dev mode enabled – no network requests will be sent");
+    // @TODO: Add better validation for the sessionReplay object
+    if (this.sessionReplay && Object.keys(this.sessionReplay).length > 0) {
+      if (this.debug) this.logger.debug('Creating session replay recorder');
+      try {
+        this.recorder = await createSessionReplay(this.projectKey, {
+          sessionId: this.sessionId,
+          debug: this.debug,
+          ...this.sessionReplay,
+        });
+        this.capture('page_viewed', {
+          url: window.location.href,
+          ...(document.title && { title: document.title }),
+        });
+      } catch (recErr) {
+        this.logger.error('Failed to init session replay:', recErr);
+      }
+    }
+
+    if (this.env === 'development') {
+      this.logger.info('Dev mode enabled – no network requests will be sent');
       this.isInitializing = false;
       return;
     }
 
     this.beforeUnloadHandler = () => this._flush(true);
-    window.addEventListener("beforeunload", this.beforeUnloadHandler);
+    window.addEventListener('beforeunload', this.beforeUnloadHandler);
     this._startFlushTimer();
 
     try {
-      // @TODO: Add better validation for the sessionReplay object
-      if (this.sessionReplay && Object.keys(this.sessionReplay).length > 0) {
-        if (this.debug) this.logger.debug("Creating session replay recorder");
-        try {
-          this.recorder = await createSessionReplay(this.projectKey, {
-            sessionId: this.sessionId,
-            debug: this.debug,
-            ...this.sessionReplay,
-          });
-        } catch (recErr) {
-          this.logger.error("Failed to init session replay:", recErr);
-        }
-      }
-
       try {
-        const res = await fetch(this.api_host + "/ingest/session", {
-          method: "POST",
+        const res = await fetch(this.api_host + '/ingest/session', {
+          method: 'POST',
           body: JSON.stringify({
             id: this.sessionId,
             project_key: this.projectKey,
@@ -170,19 +189,19 @@ export class OnboredClient {
           );
         }
       } catch (fetchErr) {
-        this.logger.error("Session registration failed:", fetchErr);
+        this.logger.error('Session registration failed:', fetchErr);
       }
 
-      this.logger.debug("Session registered");
+      this.logger.debug('Session registered');
       this.isInitializing = false;
 
       this._trackPageView();
       this._enableStepViewTracking();
 
-      this.queuedFlows.forEach((flow) => this.flow(flow));
+      this.queuedFlows.forEach(flow => this.flow(flow));
       this.queuedFlows = [];
     } catch (err) {
-      this.logger.error("Initialization failed:", err);
+      this.logger.error('Initialization failed:', err);
       this.isInitializing = false;
     }
   }
@@ -191,25 +210,39 @@ export class OnboredClient {
     try {
       return await this.initPromise;
     } catch (error) {
-      this.logger.error("Initialization failed:", error);
+      this.logger.error('Initialization failed:', error);
     }
   }
 
   private _createSession() {
     const newId = uuidv4();
-    localStorage.setItem(this.sessionStorageKey, newId);
+    try {
+      localStorage.setItem(this.sessionStorageKey, newId);
+    } catch (error) {
+      this.logger.warn('Failed to save session to localStorage:', error);
+    }
     return newId;
   }
 
   private _createActivity(date: number) {
-    localStorage.setItem(this.activityStorageKey, date.toString());
+    try {
+      localStorage.setItem(this.activityStorageKey, date.toString());
+    } catch (error) {
+      this.logger.warn('Failed to save activity to localStorage:', error);
+    }
   }
 
-  private _getSessionId(): string {
+  private _getOrSetSessionId(): string {
     const now = Date.now();
-    const lastActivity = parseInt(
-      localStorage.getItem(this.activityStorageKey) || "0"
-    );
+    let lastActivity = 0;
+
+    try {
+      lastActivity = parseInt(
+        localStorage.getItem(this.activityStorageKey) || '0'
+      );
+    } catch (error) {
+      this.logger.warn('Failed to read activity from localStorage:', error);
+    }
 
     if (!lastActivity) {
       const sessionId = this._createSession();
@@ -217,7 +250,12 @@ export class OnboredClient {
       return sessionId;
     }
 
-    const existingSessionId = localStorage.getItem(this.sessionStorageKey);
+    let existingSessionId: string | null = null;
+    try {
+      existingSessionId = localStorage.getItem(this.sessionStorageKey);
+    } catch (error) {
+      this.logger.warn('Failed to read session from localStorage:', error);
+    }
 
     if (!existingSessionId || !isValidUUID(existingSessionId)) {
       const sessionId = this._createSession();
@@ -238,28 +276,32 @@ export class OnboredClient {
   }
 
   private _restoreFlowContextFromStorage() {
-    const raw = sessionStorage.getItem(this.flowContextStorageKey);
-    if (!raw) return;
-
     try {
+      const raw = sessionStorage.getItem(this.flowContextStorageKey);
+      if (!raw) return;
+
       const parsed = JSON.parse(raw);
       if (parsed.sessionId !== this.sessionId) return; // session changed
 
       this.flowContext = new Map(parsed.flows);
 
       if (this.debug)
-        this.logger.debug("Restored flowContexts:", this.flowContext);
+        this.logger.debug('Restored flowContexts:', this.flowContext);
     } catch (err) {
-      this.logger.warn("Failed to restore flow context:", err);
+      this.logger.warn('Failed to restore flow context:', err);
     }
   }
 
   private _saveFlowContextToStorage() {
-    const raw = JSON.stringify({
-      sessionId: this.sessionId,
-      flows: Array.from(this.flowContext.entries()),
-    });
-    sessionStorage.setItem(this.flowContextStorageKey, raw);
+    try {
+      const raw = JSON.stringify({
+        sessionId: this.sessionId,
+        flows: Array.from(this.flowContext.entries()),
+      });
+      sessionStorage.setItem(this.flowContextStorageKey, raw);
+    } catch (err) {
+      this.logger.warn('Failed to save flow context to storage:', err);
+    }
   }
 
   private _startRetryLoop() {
@@ -275,8 +317,8 @@ export class OnboredClient {
 
     try {
       const now = Date.now();
-      const ready = this.retryQueue.filter((e) => e.nextAttemptAt <= now);
-      this.retryQueue = this.retryQueue.filter((e) => e.nextAttemptAt > now);
+      const ready = this.retryQueue.filter(e => e.nextAttemptAt <= now);
+      this.retryQueue = this.retryQueue.filter(e => e.nextAttemptAt > now);
 
       for (const event of ready) {
         try {
@@ -291,7 +333,7 @@ export class OnboredClient {
             });
           } else {
             this.logger.warn(
-              "Max retries reached. Dropping event",
+              'Max retries reached. Dropping event',
               event.payload
             );
           }
@@ -303,14 +345,14 @@ export class OnboredClient {
   }
 
   private async _sendEvents(payload: EventPayload[]) {
-    if (this.env === "development") {
-      this.logger.debug("Mock sendEvents:", payload);
+    if (this.env === 'development') {
+      this.logger.debug('Mock sendEvents:', payload);
       return;
     }
 
     try {
-      const response = await fetch(this.api_host + "/ingest/events", {
-        method: "POST",
+      const response = await fetch(this.api_host + '/ingest/events', {
+        method: 'POST',
         body: JSON.stringify(payload),
         headers: this.headers,
       });
@@ -341,27 +383,42 @@ export class OnboredClient {
     if (!this.eventQueue.length) return;
     if (!navigator.onLine) return; // skip if offline
 
+    // In development mode, don't actually flush (keep events for testing)
+    if (this.env === 'development') {
+      if (this.debug) {
+        this.logger.debug(
+          'Mock flush (development mode)',
+          this.eventQueue.map(p => ({
+            event: p.event_type,
+            step: p.step_id,
+            timestamp: p.timestamp,
+          }))
+        );
+      }
+      return;
+    }
+
     const payload = [...this.eventQueue];
     this.eventQueue = [];
 
-    const endpoint = this.api_host + "/ingest/events";
+    const endpoint = this.api_host + '/ingest/events';
 
     if (navigator.sendBeacon && isUnload) {
       const blob = new Blob([JSON.stringify(payload)], {
-        type: "application/json",
+        type: 'application/json',
       });
       navigator.sendBeacon(endpoint, blob);
     } else {
-      this._sendEvents(payload).catch((err) => {
+      this._sendEvents(payload).catch(err => {
         this.eventQueue.unshift(...payload); // retry next flush
-        this.logger.error("Flush failed:", err);
+        this.logger.error('Flush failed:', err);
       });
     }
 
     if (this.debug) {
       this.logger.debug(
-        "Flushing Events",
-        payload.map((p) => ({
+        'Flushing Events',
+        payload.map(p => ({
           event: p.event_type,
           step: p.step_id,
           timestamp: p.timestamp,
@@ -370,7 +427,7 @@ export class OnboredClient {
     }
   }
 
-  private _getFlowContext(flowId: string): FlowContext | null {
+  _getFlowContext(flowId: string): FlowContext | null {
     const context = this.flowContext.get(flowId);
     if (!context) {
       this.logger.warn(`No context for flow: "${flowId}"`);
@@ -380,16 +437,16 @@ export class OnboredClient {
   }
 
   private _trackPageView(): void {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
 
     this.popstateHandler = () => {
-      this.capture("page_viewed", {
+      this.capture('page_viewed', {
         url: window.location.href,
-        referrer: document.referrer || undefined,
+        ...(document.referrer && { referrer: document.referrer }),
       });
     };
 
-    window.addEventListener("popstate", this.popstateHandler);
+    window.addEventListener('popstate', this.popstateHandler);
 
     this.originalPushState = history.pushState;
     this.originalReplaceState = history.replaceState;
@@ -403,9 +460,9 @@ export class OnboredClient {
           const path = sanitize(window.location.pathname);
           const lastPath = this._getLastPath();
 
-          this.capture("page_viewed", {
+          this.capture('page_viewed', {
             url: window.location.href,
-            referrer: document.referrer || undefined,
+            ...(document.referrer && { referrer: document.referrer }),
           });
 
           // Update last path for next comparison
@@ -415,11 +472,8 @@ export class OnboredClient {
         return result;
       };
 
-    history.pushState = patched("pushState", this.originalPushState);
-    history.replaceState = patched("replaceState", this.originalReplaceState);
-
-    if (this.debug)
-      this.logger.debug("[Onbored] SPA route change tracking enabled");
+    history.pushState = patched('pushState', this.originalPushState);
+    history.replaceState = patched('replaceState', this.originalReplaceState);
   }
 
   private _getLastPath(): string | undefined {
@@ -433,10 +487,7 @@ export class OnboredClient {
     sessionStorage.setItem(`${this.flowContextStorageKey}_last_path`, path);
   }
 
-  private _viewStep(
-    stepName: string,
-    options: { slug: string } & Record<string, any>
-  ) {
+  private _viewStep(stepName: string, options: { slug: string } & Options) {
     const context = this._getFlowContext(options.slug);
 
     if (!context) {
@@ -445,7 +496,7 @@ export class OnboredClient {
     }
 
     this.capture(
-      "step_viewed",
+      'step_viewed',
       {
         step_id: stepName,
         flow_id: context.id,
@@ -465,18 +516,16 @@ export class OnboredClient {
   }
 
   private _enableStepViewTracking(): void {
-    if (typeof window === "undefined") return;
-
-    this.logger.info("🔵🟡 - enableStepViewTracking");
+    if (typeof window === 'undefined') return;
 
     this.intersectionObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
+      entries => {
+        entries.forEach(entry => {
           if (!entry.isIntersecting) return;
 
           const el = entry.target as HTMLElement;
-          const stepName = el.getAttribute("data-onbored-step");
-          const slug = el.getAttribute("data-onbored-funnel");
+          const stepName = el.getAttribute('data-onbored-step');
+          const slug = el.getAttribute('data-onbored-funnel');
 
           if (stepName && slug) {
             this._viewStep(stepName, { slug });
@@ -490,10 +539,10 @@ export class OnboredClient {
 
     const observeMatchingElements = () => {
       const elements = document.querySelectorAll<HTMLElement>(
-        "[data-onbored-step][data-onbored-funnel]"
+        '[data-onbored-step][data-onbored-funnel]'
       );
 
-      elements.forEach((el) => {
+      elements.forEach(el => {
         if (!observed.has(el)) {
           this.intersectionObserver?.observe(el);
           observed.add(el);
@@ -512,34 +561,20 @@ export class OnboredClient {
       childList: true,
       subtree: true,
     });
-
-    if (this.debug) {
-      this.logger.debug(
-        "[Onbored] Step view tracking enabled (with SPA support)"
-      );
-    }
   }
 
   // Public API methods
-  async flow(slug: string) {
+  async flow(slug: string, metadata?: Options) {
     if (this.isInitializing) {
       this.queuedFlows.push(slug);
-      this.logger.debug("Queued flow:", slug);
+      this.logger.debug('Queued flow:', slug);
       return;
     }
 
     await this.waitForInit();
 
-    this.logger.info("🔵🟡 - flow", slug);
-    this.logger.info("🔵🟡 - initialization complete");
-
     if (this.flowContext.has(slug)) {
       this.logger.debug(`Flow ${slug} already exists`);
-      return;
-    }
-
-    if (this.env === "development") {
-      this.logger.info("Mock flow started:", slug);
       return;
     }
 
@@ -548,45 +583,61 @@ export class OnboredClient {
       const flowId = crypto.randomUUID();
       const payload: EventPayload = {
         id: crypto.randomUUID(),
-        event_type: "flow_started",
+        event_type: 'flow_started',
         flow_id: flowId,
-        step_id: "flow_started",
+        step_id: 'flow_started',
         funnel_slug: slug,
+        ...(metadata && { metadata }),
         session_id: this.sessionId,
         timestamp: timestamp,
         project_key: this.projectKey,
         url: window.location.href,
-        referrer: document.referrer || undefined,
+        ...(document.referrer && { referrer: document.referrer }),
       };
-      const response = await fetch(this.api_host + "/ingest/flow", {
-        method: "POST",
-        body: JSON.stringify(payload),
-        headers: this.headers,
-      });
-      const data: { status: string } = await response.json();
-      this.trackingPageviewsForFlows.add(flowId);
 
+      // Store flow context before sending network request
       this.flowContext.set(slug, {
         id: flowId,
         startedAt: new Date(timestamp).getTime(),
-        status: "started",
+        status: 'started',
       });
 
       this._saveFlowContextToStorage();
 
+      if (this.env === 'development') {
+        this.logger.info('Mock flow started:', slug);
+        // Queue the event in development mode
+        this.eventQueue.push(payload);
+        this._processQueuedStepViews(slug);
+        return;
+      }
+
+      const response = await fetch(this.api_host + '/ingest/flow', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: this.headers,
+      });
+
+      const data: { status: string } = await response.json();
+      if (data.status !== 'ok') {
+        this.logger.error('Flow registration failed:', data);
+        return;
+      }
+      this.trackingPageviewsForFlows.add(flowId);
+
       this._processQueuedStepViews(slug);
     } catch (err) {
-      this.logger.error("Flow registration failed:", err);
+      this.logger.error('Flow registration failed:', err);
     }
   }
 
   private _processQueuedStepViews(flowSlug: string) {
     const relevantStepViews = this.queuedStepViews.filter(
-      (queued) => queued.options.slug === flowSlug
+      queued => queued.options.slug === flowSlug
     );
 
     this.queuedStepViews = this.queuedStepViews.filter(
-      (queued) => queued.options.slug !== flowSlug
+      queued => queued.options.slug !== flowSlug
     );
 
     relevantStepViews.forEach(({ stepName, options }) => {
@@ -594,19 +645,16 @@ export class OnboredClient {
     });
   }
 
-  async step(
-    stepName: string,
-    options: { slug: string } & Record<string, any>
-  ) {
+  async step(stepName: string, options: { slug: string } & Options) {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) {
-      console.log("🔴 - no context in this step", stepName);
+      this.logger.warn('No context in this step', stepName);
       // this.queuedStepViews.push({ stepName, options });
       return;
     }
 
-    this.capture("step_completed", {
+    this.capture('step_complete', {
       step_id: stepName,
       flow_id: context.id,
       funnel_slug: options.slug,
@@ -619,15 +667,12 @@ export class OnboredClient {
     this.logger.debug(`Step started: ${stepName} (flow: ${options.slug})`);
   }
 
-  async skip(
-    stepName: string,
-    options: { slug: string } & Record<string, any>
-  ) {
+  async skip(stepName: string, options: { slug: string } & Options) {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) return;
 
-    this.capture("step_abandoned", {
+    this.capture('step_abandoned', {
       step_id: stepName,
       flow_id: context.id,
       funnel_slug: options.slug,
@@ -636,14 +681,14 @@ export class OnboredClient {
       },
     });
 
-    this.logger.debug(`Step completed: ${stepName} (flow: ${options.slug})`);
+    this.logger.debug(`Step skipped: ${stepName} (flow: ${options.slug})`);
   }
 
-  async completed(options: { slug: string } & Record<string, any>) {
+  async complete(options: { slug: string } & Options) {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) return;
-    this.capture("flow_completed", {
+    this.capture('flow_complete', {
       flow_id: context.id,
       funnel_slug: options.slug,
       metadata: {
@@ -651,7 +696,7 @@ export class OnboredClient {
       },
     });
 
-    this.logger.debug("Flow completed:", {
+    this.logger.debug('Flow complete:', {
       flowId: context.id,
       slug: options.slug,
     });
@@ -659,7 +704,7 @@ export class OnboredClient {
     this.flowContext.set(options.slug, {
       id: context.id,
       startedAt: context.startedAt,
-      status: "completed",
+      status: 'complete',
     });
 
     this._saveFlowContextToStorage();
@@ -671,37 +716,47 @@ export class OnboredClient {
     data: Partial<
       Omit<
         EventPayload,
-        "id" | "event_type" | "session_id" | "timestamp" | "project_key"
+        'id' | 'event_type' | 'session_id' | 'timestamp' | 'project_key'
       >
     >,
     enqueue: boolean = true
   ): Promise<EventPayload | null> {
+    // Extract known fields and treat the rest as metadata
+    const { flow_id, step_id, funnel_slug, metadata } = data as Partial<
+      Omit<
+        EventPayload,
+        'id' | 'event_type' | 'session_id' | 'timestamp' | 'project_key'
+      >
+    >;
+
     const payload: EventPayload = {
       id: crypto.randomUUID(),
       event_type,
-      flow_id: data.flow_id,
-      step_id: data.step_id,
-      metadata: data.metadata,
-      funnel_slug: data.funnel_slug,
+      ...(flow_id && { flow_id }),
+      ...(step_id && { step_id }),
+      ...(funnel_slug && { funnel_slug }),
+      ...(metadata && { metadata }),
       session_id: this.sessionId,
       timestamp: new Date().toISOString(),
       project_key: this.projectKey,
       url: window.location.href,
-      referrer: document.referrer || undefined,
+      ...(document.referrer && { referrer: document.referrer }),
     };
-
-    if (this.env === "development") {
-      this.logger.debug("Mock capture:", payload);
-      return payload;
-    }
 
     try {
       eventPayloadSchema.parse(payload);
 
+      if (this.env === 'development') {
+        this.logger.debug('Mock capture:', payload);
+        // Still queue events in development mode for testing
+        this.eventQueue.push(payload);
+        return payload;
+      }
+
       // Queue events that happen before initialization
       if (this.isInitializing || enqueue) {
         this.eventQueue.push(payload);
-        this.logger.debug("Queued event (pre-init):", payload);
+        this.logger.debug('Queued event (pre-init):', payload);
         return payload;
       }
 
@@ -712,7 +767,7 @@ export class OnboredClient {
 
       return payload;
     } catch (error) {
-      this.logger.error("Invalid event payload:", error, payload);
+      this.logger.error('Invalid event payload:', error, payload);
       return null;
     }
   }
@@ -724,7 +779,7 @@ export class OnboredClient {
     this.retryQueue = [];
     this.queuedStepViews = [];
     this.trackingPageviewsForFlows.clear();
-    this.logger.debug("Reset session");
+    this.logger.debug('Reset session');
     this.recorder?.stop();
   }
 
@@ -732,52 +787,73 @@ export class OnboredClient {
     // Clear intervals
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
-      this.flushTimer = undefined;
+      delete this.flushTimer;
     }
 
     if (this.retryInterval) {
       clearInterval(this.retryInterval);
-      this.retryInterval = undefined;
+      delete this.retryInterval;
     }
 
     // Disconnect observers
     if (this.intersectionObserver) {
       this.intersectionObserver.disconnect();
-      this.intersectionObserver = undefined;
+      delete this.intersectionObserver;
     }
 
     if (this.mutationObserver) {
       this.mutationObserver.disconnect();
-      this.mutationObserver = undefined;
+      delete this.mutationObserver;
     }
 
     // Remove event listeners
     if (this.beforeUnloadHandler) {
-      window.removeEventListener("beforeunload", this.beforeUnloadHandler);
-      this.beforeUnloadHandler = undefined;
+      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+      delete this.beforeUnloadHandler;
     }
 
     if (this.popstateHandler) {
-      window.removeEventListener("popstate", this.popstateHandler);
-      this.popstateHandler = undefined;
+      window.removeEventListener('popstate', this.popstateHandler);
+      delete this.popstateHandler;
     }
 
     // Restore original history methods
     if (this.originalPushState) {
       history.pushState = this.originalPushState;
-      this.originalPushState = undefined;
+      delete this.originalPushState;
     }
 
     if (this.originalReplaceState) {
       history.replaceState = this.originalReplaceState;
-      this.originalReplaceState = undefined;
+      delete this.originalReplaceState;
     }
 
     // Remove global debug function
-    if (this.env === "development" && typeof window !== "undefined") {
-      delete (window as any).__onboredFlush;
+    if (this.env === 'development' && typeof window !== 'undefined') {
+      delete (window as Window & { __onboredFlush?: () => void })
+        .__onboredFlush;
     }
 
-    this.logger.debug("OnboredClient destroyed");
+    this.logger.debug('OnboredClient destroyed');
+  }
+
+  // Debug methods for testing
+  _getEvents() {
+    return [...this.eventQueue];
+  }
+
+  _getSessionId() {
+    return this.sessionId;
+  }
+
+  _getRecorder() {
+    return this.recorder;
+  }
+
+  _getRecorderEvents() {
+    if (this.recorder) {
+      return this.eventQueue;
+    }
+    return [];
   }
 }

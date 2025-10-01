@@ -1,8 +1,8 @@
 // Provider
-export { OnboredProvider } from "./provider";
+export { OnboredProvider } from './provider';
 
 // Hooks
-export { useFlow } from "./hooks/useFlow";
+export { useFlow } from './hooks/useFlow';
 
 // Types
-export type { OnboredConfig } from "../onbored"; 
+export type { OnboredClientOptions } from '../lib/types';

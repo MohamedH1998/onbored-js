@@ -1,15 +1,16 @@
-import { OnboredClientOptions } from "./types";
+import { DEFAULT_GLOBAL_OPTIONS } from './constants';
+import { OnboredClientOptions } from './types';
 
 export function applySettingDefaults(
   options: OnboredClientOptions = {},
-  defaults: OnboredClientOptions = {}
+  defaults: OnboredClientOptions = DEFAULT_GLOBAL_OPTIONS
 ) {
   const result = {
     ...defaults,
     ...options,
     storage: {
-      ...options?.storage,
       ...defaults?.storage,
+      ...options?.storage,
     },
     session_replay:
       options.session_replay === false
@@ -19,11 +20,11 @@ export function applySettingDefaults(
             ...options?.session_replay,
           },
     global: {
-      ...options?.global,
       ...defaults?.global,
+      ...options?.global,
       headers: {
-        ...options.global?.headers,
         ...defaults.global?.headers,
+        ...options.global?.headers,
       },
     },
   };
@@ -38,5 +39,5 @@ export function isValidUUID(uuid: string): boolean {
 }
 
 export function sanitize(input: string): string {
-  return input.replace(/[<>"'`]/g, "");
+  return input.replace(/[<>"'`]/g, '');
 }
