@@ -55,12 +55,12 @@ export class OnBoredTestHelper {
     await this.page.evaluate(cfg => {
       window.onbored.init({
         projectKey: cfg.projectKey,
-        user_id: cfg.userId,
+        userId: cfg.userId,
         env: cfg.environment,
         debug: cfg.debug,
-        session_replay: cfg.sessionReplay
+        sessionReplay: cfg.sessionReplay
           ? ({
-              api_host: cfg.apiHost,
+              apiHost: cfg.apiHost,
             } as unknown as SessionReplayOptions)
           : false,
       });

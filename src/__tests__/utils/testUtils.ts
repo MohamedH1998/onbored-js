@@ -18,10 +18,10 @@ export const createMockSessionId = () => 'test-session-12345';
 export const createMockOptions = (
   overrides: Partial<OnboredClientOptions> = {}
 ): OnboredClientOptions => ({
-  user_id: createMockUserId(),
+  userId: createMockUserId(),
   debug: true,
   env: 'development',
-  api_host: 'http://localhost:3000',
+  apiHost: 'http://localhost:3000',
   ...overrides,
 });
 

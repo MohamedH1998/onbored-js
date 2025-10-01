@@ -40,18 +40,20 @@ export class SessionReplayClient {
       options.debug ? 'debug' : 'info'
     );
 
-    const uploadUrl = `${options.api_host.replace(
+    const uploadUrl = `${options.apiHost.replace(
       /\/$/,
       ''
     )}/ingest/session-replay`;
 
     this.options = {
-      flush_interval: 10_000,
-      mask_inputs: true,
-      block_elements: [],
-      on_error: (err: Error) => console.error(err),
-      ...options,
+      apiHost: options.apiHost,
+      flushInterval: options.flushInterval ?? 10_000,
+      maskInputs: options.maskInputs ?? true,
+      blockElements: options.blockElements ?? [],
+      onError: options.onError ?? ((err: Error) => console.error(err)),
       uploadUrl,
+      sessionId: options.sessionId,
+      debug: options.debug,
     };
   }
 
@@ -79,8 +81,8 @@ export class SessionReplayClient {
 
         this.logger.debug('Event captured');
       },
-      blockSelector: this.options.block_elements?.join(',') || '',
-      maskAllInputs: this.options.mask_inputs ?? true,
+      blockSelector: this.options.blockElements?.join(',') || '',
+      maskAllInputs: this.options.maskInputs ?? true,
       maskInputOptions: {
         password: true,
         email: true,
@@ -159,7 +161,7 @@ export class SessionReplayClient {
       if (this.events.length > 0 && !this.isIdle) {
         this._uploadEvents();
       }
-    }, this.options.flush_interval);
+    }, this.options.flushInterval);
   }
 
   private _maybeFlushSnapshot(): void {
@@ -233,7 +235,7 @@ export class SessionReplayClient {
         body: compressed,
       });
     } catch (error) {
-      this.options.on_error?.(error as Error);
+      this.options.onError?.(error as Error);
       this.events.unshift(...eventsToUpload); // Retry on failure
     }
   }

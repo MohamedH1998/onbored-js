@@ -211,11 +211,11 @@
             
             getConfig: () => ({
                 projectKey: document.getElementById('project-key').value,
-                user_id: document.getElementById('user-id').value,
+                userId: document.getElementById('user-id').value,
                 env: document.getElementById('env').value,
                 debug: document.getElementById('debug').checked,
-                session_replay: document.getElementById('session-replay').checked ? {
-                    api_host: 'http://localhost:3000',
+                sessionReplay: document.getElementById('session-replay').checked ? {
+                    apiHost: 'http://localhost:3000',
                     sessionId: 'test-session',
                 } : false,
             }),

@@ -66,8 +66,7 @@ afterAll(() => {
 // Global test utilities
 declare global {
   interface Window {
-    __onboredFlush?: unknown;
-    onbored?: unknown;
+    __onboredFlush?: () => void;
   }
 }
 

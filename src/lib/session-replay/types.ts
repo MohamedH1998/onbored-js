@@ -1,9 +1,9 @@
 export type SessionReplayOptions = {
-  api_host: string;
-  flush_interval?: number | undefined;
-  mask_inputs?: boolean | undefined;
-  block_elements?: string[] | undefined;
-  on_error?: ((err: Error) => void) | undefined;
+  apiHost: string;
+  flushInterval?: number | undefined;
+  maskInputs?: boolean | undefined;
+  blockElements?: string[] | undefined;
+  onError?: ((err: Error) => void) | undefined;
 };
 
 export type SessionReplayEvent = {

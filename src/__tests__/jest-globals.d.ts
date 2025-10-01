@@ -11,7 +11,7 @@ declare global {
   const test: typeof import('@jest/globals').test;
 
   interface Window {
-    onbored: {
+    onbored?: {
       init: (options: any) => void;
       flow: (slug: string) => void;
       step: (step: string, options: any) => void;

@@ -44,7 +44,7 @@ describe('SDK Initialization', () => {
 
       expect(client['env']).toBe('production');
       expect(client['debug']).toBe(false);
-      expect(client['api_host']).toBe('https://api.onbored.com');
+      expect(client['apiHost']).toBe('https://api.onbored.com');
       expect(client['sessionTimeoutMs']).toBe(30 * 60 * 1000);
     });
 
@@ -66,15 +66,15 @@ describe('SDK Initialization', () => {
       const options = createMockOptions({
         debug: true,
         env: 'development',
-        api_host: 'http://localhost:3000',
-        user_id: 'custom-user-id',
+        apiHost: 'http://localhost:3000',
+        userId: 'custom-user-id',
       });
 
       const client = new OnboredClient(createMockProjectKey(), options);
 
       expect(client['debug']).toBe(true);
       expect(client['env']).toBe('development');
-      expect(client['api_host']).toBe('http://localhost:3000');
+      expect(client['apiHost']).toBe('http://localhost:3000');
       expect(client['userId']).toBe('custom-user-id');
     });
 
@@ -88,7 +88,7 @@ describe('SDK Initialization', () => {
 
       expect(client['debug']).toBe(true);
       expect(client['env']).toBe('production'); // Default
-      expect(client['api_host']).toBe('https://api.onbored.com'); // Default
+      expect(client['apiHost']).toBe('https://api.onbored.com'); // Default
     });
 
     it('should handle development mode correctly', () => {
@@ -103,13 +103,13 @@ describe('SDK Initialization', () => {
 
     it('should set up session replay when enabled', () => {
       const client = new OnboredClient(createMockProjectKey(), {
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
       expect(client['sessionReplay']).toBeDefined();
-      expect(client['sessionReplay']).toHaveProperty('api_host');
+      expect(client['sessionReplay']).toHaveProperty('apiHost');
     });
   });
 
@@ -193,10 +193,10 @@ describe('SDK Initialization', () => {
       };
 
       const client = new OnboredClient(createMockProjectKey(), {
-        user_metadata: userMetadata,
+        userMetadata: userMetadata,
       });
 
-      // Note: user_metadata is not directly stored on client, but should be handled
+      // Note: userMetadata is not directly stored on client, but should be handled
       expect(client).toBeInstanceOf(OnboredClient);
     });
   });
@@ -223,10 +223,10 @@ describe('SDK Initialization', () => {
 
     it('should set up appropriate API endpoints', () => {
       const client = new OnboredClient(createMockProjectKey(), {
-        api_host: 'http://localhost:3000',
+        apiHost: 'http://localhost:3000',
       });
 
-      expect(client['api_host']).toBe('http://localhost:3000');
+      expect(client['apiHost']).toBe('http://localhost:3000');
     });
   });
 
