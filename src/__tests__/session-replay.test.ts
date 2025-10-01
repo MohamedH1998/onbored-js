@@ -37,13 +37,13 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
       expect(client['sessionReplay']).toBeDefined();
-      expect(client['sessionReplay']).toHaveProperty('api_host');
+      expect(client['sessionReplay']).toHaveProperty('apiHost');
       expect(client['sessionReplay']).not.toBe(false);
     });
 
@@ -56,8 +56,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -69,8 +69,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -79,16 +79,16 @@ describe('Session Replay', () => {
 
     it('should configure rrweb options correctly', async () => {
       const sessionReplayOptions = {
-        api_host: 'http://localhost:3000',
-        flush_interval: 5000,
-        mask_inputs: true,
-        block_elements: ['.sensitive'],
+        apiHost: 'http://localhost:3000',
+        flushInterval: 5000,
+        maskInputs: true,
+        blockElements: ['.sensitive'],
       };
 
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: sessionReplayOptions,
+        sessionReplay: sessionReplayOptions,
       });
 
       expect(client['sessionReplay']).toEqual(sessionReplayOptions);
@@ -108,7 +108,7 @@ describe('Session Replay', () => {
         env: 'development',
         debug: true,
         // @ts-expect-error - Testing invalid prop type
-        session_replay: true, // Invalid - should be object or false
+        sessionReplay: true, // Invalid - should be object or false
       });
 
       expect(client['sessionReplay']).toBe(false);
@@ -120,8 +120,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
     });
@@ -177,8 +177,8 @@ describe('Session Replay', () => {
         client = new OnboredClient(createMockProjectKey(), {
           env: 'development',
           debug: true,
-          session_replay: {
-            api_host: 'http://localhost:3000',
+          sessionReplay: {
+            apiHost: 'http://localhost:3000',
           },
         });
       }).not.toThrow();
@@ -190,8 +190,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
     });
@@ -233,8 +233,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'production',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -261,8 +261,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'production',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -306,8 +306,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
     });
@@ -392,8 +392,8 @@ describe('Session Replay', () => {
         client = new OnboredClient(createMockProjectKey(), {
           env: 'development',
           debug: true,
-          session_replay: {
-            api_host: 'http://localhost:3000',
+          sessionReplay: {
+            apiHost: 'http://localhost:3000',
           },
         });
       }).not.toThrow();
@@ -403,8 +403,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -428,8 +428,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'production',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -450,8 +450,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'production',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -483,8 +483,8 @@ describe('Session Replay', () => {
         client = new OnboredClient(createMockProjectKey(), {
           env: 'development',
           debug: true,
-          session_replay: {
-            api_host: 'http://localhost:3000',
+          sessionReplay: {
+            apiHost: 'http://localhost:3000',
           },
         });
       }).not.toThrow();
@@ -496,8 +496,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -518,8 +518,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 
@@ -566,8 +566,8 @@ describe('Session Replay', () => {
       client = new OnboredClient(createMockProjectKey(), {
         env: 'production',
         debug: true,
-        session_replay: {
-          api_host: 'http://localhost:3000',
+        sessionReplay: {
+          apiHost: 'http://localhost:3000',
         },
       });
 

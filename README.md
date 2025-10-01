@@ -47,8 +47,8 @@ import { onbored } from 'onbored-js';
 // Initialize with your project key
 onbored.init({
   projectKey: 'pk_live_1234567890abcdef', // Get this from onbored.io
-  user_id: 'user_123',
-  user_metadata: { plan: 'premium' },
+  userId: 'user_123',
+  userMetadata: { plan: 'premium' },
   debug: true,
 });
 
@@ -68,7 +68,7 @@ function App() {
     <OnboredProvider
       config={{
         projectKey: 'pk_live_1234567890abcdef',
-        user_id: 'user_123',
+        userId: 'user_123',
         debug: true,
       }}
     >
@@ -160,22 +160,22 @@ Initialize the Onbored SDK. Must be called before any other methods.
 | Parameter        | Type                            | Required | Description                                            |
 | ---------------- | ------------------------------- | -------- | ------------------------------------------------------ |
 | `projectKey`     | `string`                        | ✅       | Your project key from [onbored.io](https://onbored.io) |
-| `user_id`        | `string`                        | ❌       | Unique identifier for the user                         |
-| `user_metadata`  | `object`                        | ❌       | Additional user properties (plan, role, etc.)          |
+| `userId`         | `string`                        | ❌       | Unique identifier for the user                         |
+| `userMetadata`   | `object`                        | ❌       | Additional user properties (plan, role, etc.)          |
 | `debug`          | `boolean`                       | ❌       | Enable debug logging (default: `false`)                |
 | `env`            | `'development' \| 'production'` | ❌       | Environment mode (default: `'production'`)             |
-| `api_host`       | `string`                        | ❌       | Custom API host (default: `'https://api.onbored.com'`) |
+| `apiHost`        | `string`                        | ❌       | Custom API host (default: `'https://api.onbored.com'`) |
 | `storage`        | `Storage`                       | ❌       | Custom storage keys                                    |
 | `global`         | `GlobalOptions`                 | ❌       | Custom fetch and headers                               |
-| `session_replay` | `SessionReplayOptions \| false` | ❌       | Session replay configuration                           |
+| `sessionReplay`  | `SessionReplayOptions \| false` | ❌       | Session replay configuration                           |
 
 **Example:**
 
 ```typescript
 onbored.init({
   projectKey: 'pk_live_1234567890abcdef',
-  user_id: 'user_123',
-  user_metadata: {
+  userId: 'user_123',
+  userMetadata: {
     plan: 'premium',
     role: 'admin',
     companySize: '11-50',
@@ -322,6 +322,8 @@ onbored.destroy();
 
 Wrap your app with the provider to automatically initialize the SDK.
 
+> **⚠️ Important:** `OnboredProvider` uses browser APIs and must run on the client side. In Next.js App Router or similar SSR frameworks, create a separate client component for the provider.
+
 **Props:**
 
 | Prop       | Type                   | Required | Description       |
@@ -329,7 +331,7 @@ Wrap your app with the provider to automatically initialize the SDK.
 | `config`   | `OnboredClientOptions` | ✅       | SDK configuration |
 | `children` | `ReactNode`            | ✅       | Child components  |
 
-**Example:**
+**Example (Client-side React):**
 
 ```tsx
 import { OnboredProvider } from 'onbored-js/react';
@@ -339,13 +341,52 @@ function App() {
     <OnboredProvider
       config={{
         projectKey: 'pk_live_1234567890abcdef',
-        user_id: 'user_123',
-        user_metadata: { plan: 'premium' },
+        userId: 'user_123',
+        userMetadata: { plan: 'premium' },
         debug: true,
       }}
     >
       <YourApp />
     </OnboredProvider>
+  );
+}
+```
+
+**Example (Next.js App Router):**
+
+```tsx
+// app/providers.tsx
+'use client';
+
+import { OnboredProvider } from 'onbored-js/react';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <OnboredProvider
+      config={{
+        projectKey: 'pk_live_1234567890abcdef',
+        userId: 'user_123',
+        userMetadata: { plan: 'premium' },
+        debug: true,
+      }}
+    >
+      {children}
+    </OnboredProvider>
+  );
+}
+```
+
+```tsx
+// app/layout.tsx
+import { Providers } from './providers';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
   );
 }
 ```
@@ -407,25 +448,25 @@ Record and replay user sessions to see exactly what users experienced.
 ```typescript
 onbored.init({
   projectKey: 'pk_live_1234567890abcdef',
-  session_replay: {
-    api_host: 'https://api.onbored.com',
-    flush_interval: 10000, // Flush every 10 seconds
-    mask_inputs: true, // Mask sensitive input fields
-    block_elements: ['.sensitive-data'], // CSS selectors to block
-    on_error: err => console.error('Replay error:', err),
+  sessionReplay: {
+    apiHost: 'https://api.onbored.com',
+    flushInterval: 10000, // Flush every 10 seconds
+    maskInputs: true, // Mask sensitive input fields
+    blockElements: ['.sensitive-data'], // CSS selectors to block
+    onError: err => console.error('Replay error:', err),
   },
 });
 ```
 
 ### Session Replay Options
 
-| Option           | Type       | Default  | Description                             |
-| ---------------- | ---------- | -------- | --------------------------------------- |
-| `api_host`       | `string`   | Required | API endpoint for replay data            |
-| `flush_interval` | `number`   | `10000`  | How often to flush events (ms)          |
-| `mask_inputs`    | `boolean`  | `true`   | Automatically mask input fields         |
-| `block_elements` | `string[]` | `[]`     | CSS selectors to exclude from recording |
-| `on_error`       | `function` | -        | Error handler callback                  |
+| Option          | Type       | Default  | Description                             |
+| --------------- | ---------- | -------- | --------------------------------------- |
+| `apiHost`       | `string`   | Required | API endpoint for replay data            |
+| `flushInterval` | `number`   | `10000`  | How often to flush events (ms)          |
+| `maskInputs`    | `boolean`  | `true`   | Automatically mask input fields         |
+| `blockElements` | `string[]` | `[]`     | CSS selectors to exclude from recording |
+| `onError`       | `function` | -        | Error handler callback                  |
 
 ---
 
@@ -559,8 +600,8 @@ function App() {
     <OnboredProvider
       config={{
         projectKey: 'pk_live_1234567890abcdef',
-        user_id: currentUser.id,
-        user_metadata: {
+        userId: currentUser.id,
+        userMetadata: {
           plan: currentUser.plan,
           role: currentUser.role,
           companySize: currentUser.company.size,
@@ -628,8 +669,8 @@ function OnboardingWizard() {
 // Initialize SDK
 onbored.init({
   projectKey: 'pk_live_1234567890abcdef',
-  user_id: user.id,
-  user_metadata: {
+  userId: user.id,
+  userMetadata: {
     plan: user.plan,
     lifetimeValue: user.ltv,
   },

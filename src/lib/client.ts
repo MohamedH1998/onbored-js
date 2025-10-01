@@ -31,7 +31,7 @@ export class OnboredClient implements OnboredClientInterface {
   protected sessionStorageKey: string;
   protected activityStorageKey: string;
   protected flowContextStorageKey: string;
-  protected api_host: string;
+  protected apiHost: string;
   protected flowContext: Map<string, FlowContext>;
   protected headers: Record<string, string>;
   protected sessionReplay: false | SessionReplayOptions;
@@ -68,14 +68,14 @@ export class OnboredClient implements OnboredClientInterface {
   /**
    * Create a new client for use in the browser.
    * @param projectKey The unique Onbored Key which is supplied when you create a new project in your project dashboard.
-   * @param options.user_id This user id will be used to identify the user in the Onbored dashboard.
-   * @param options.user_metadata The user metadata.
+   * @param options.userId This user id will be used to identify the user in the Onbored dashboard.
+   * @param options.userMetadata The user metadata.
    * @param options.debug Whether to enable debug mode.
-   * @param options.api_host The API host.
+   * @param options.apiHost The API host.
    * @param options.env Set to "development" if you want to run the client in development mode.
    * @param options.global.fetch A custom fetch implementation.
    * @param options.global.headers Any additional headers to send with each network request.
-   * @param options.session_replay The session replay options.
+   * @param options.sessionReplay The session replay options.
    * @param options.storage The storage options.
    * @param options.global The global options.
    */
@@ -110,9 +110,9 @@ export class OnboredClient implements OnboredClientInterface {
     this.sessionTimeoutMs = 30 * 60 * 1000; // 30 minutes
     this.flowContext = new Map<string, FlowContext>();
 
-    this.userId = settings.user_id ?? '';
+    this.userId = settings.userId ?? '';
     this.env = settings.env ?? 'production';
-    this.api_host = settings.api_host ?? 'https://api.onbored.com';
+    this.apiHost = settings.apiHost ?? 'https://api.onbored.com';
     this.sessionStorageKey = settings.storage.sessionStorageKey ?? '';
     this.activityStorageKey = settings.storage.activityStorageKey ?? '';
     this.flowContextStorageKey = settings.storage.flowContextStorageKey ?? '';
@@ -121,13 +121,11 @@ export class OnboredClient implements OnboredClientInterface {
     this.sessionId = this._getOrSetSessionId();
     this.headers = settings.global.headers ?? {};
     this.sessionReplay =
-      settings.session_replay === true
-        ? false
-        : settings.session_replay &&
-            typeof settings.session_replay === 'object' &&
-            'api_host' in settings.session_replay
-          ? (settings.session_replay as SessionReplayOptions)
-          : false;
+      settings.sessionReplay &&
+      typeof settings.sessionReplay === 'object' &&
+      'apiHost' in settings.sessionReplay
+        ? (settings.sessionReplay as SessionReplayOptions)
+        : false;
     // this.fetch = settings.global.fetch ?? fetch;
 
     this._restoreFlowContextFromStorage();
@@ -172,7 +170,7 @@ export class OnboredClient implements OnboredClientInterface {
 
     try {
       try {
-        const res = await fetch(this.api_host + '/ingest/session', {
+        const res = await fetch(this.apiHost + '/ingest/session', {
           method: 'POST',
           body: JSON.stringify({
             id: this.sessionId,
@@ -351,7 +349,7 @@ export class OnboredClient implements OnboredClientInterface {
     }
 
     try {
-      const response = await fetch(this.api_host + '/ingest/events', {
+      const response = await fetch(this.apiHost + '/ingest/events', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: this.headers,
@@ -401,7 +399,7 @@ export class OnboredClient implements OnboredClientInterface {
     const payload = [...this.eventQueue];
     this.eventQueue = [];
 
-    const endpoint = this.api_host + '/ingest/events';
+    const endpoint = this.apiHost + '/ingest/events';
 
     if (navigator.sendBeacon && isUnload) {
       const blob = new Blob([JSON.stringify(payload)], {
@@ -612,7 +610,7 @@ export class OnboredClient implements OnboredClientInterface {
         return;
       }
 
-      const response = await fetch(this.api_host + '/ingest/flow', {
+      const response = await fetch(this.apiHost + '/ingest/flow', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: this.headers,

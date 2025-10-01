@@ -15,17 +15,17 @@ export type Storage = {
 export type Fetch = typeof fetch;
 
 export type OnboredClientOptions = {
-  user_id?: string;
-  user_metadata?: Options;
+  userId?: string;
+  userMetadata?: Options;
   debug?: boolean;
   env?: string;
-  api_host?: string;
+  apiHost?: string;
   storage?: Storage;
   global?: {
     fetch?: Fetch;
     headers?: Record<string, string>;
   };
-  session_replay?: false | SessionReplayOptions;
+  sessionReplay?: false | SessionReplayOptions;
 };
 
 export type FlowContext = {

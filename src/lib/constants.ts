@@ -21,16 +21,16 @@ export const DEFAULT_HEADERS = {
 
 export const DEFAULT_GLOBAL_OPTIONS = {
   headers: DEFAULT_HEADERS,
-  // TODO: update api_host to use real api
-  api_host: 'https://api.onbored.com',
+  // TODO: update apiHost to use real api
+  apiHost: 'https://api.onbored.com',
   env: 'production',
   debug: false,
   intervals: {
     retry: 5000, // 5 seconds
   },
-  session_replay: {
-    // TODO: update api_host to use real api
-    api_host: 'https://api.onbored.com',
+  sessionReplay: {
+    // TODO: update apiHost to use real api
+    apiHost: 'https://api.onbored.com',
     flush_interval: 10000,
     mask_inputs: true,
     block_elements: [],

@@ -40,5 +40,5 @@ export const onbored = {
   _getFlowContext: (slug: string) => onbored._get()._getFlowContext(slug),
   _getRecorder: () => onbored._get()._getRecorder(),
   _getRecorderEvents: () => onbored._get()._getRecorderEvents(),
-  _getSessionId: () => onbored._get().getSessionId(),
+  _getSessionId: () => onbored._get()._getSessionId(),
 };
