@@ -92,7 +92,7 @@ export const expectValidFlowContext = (context: any) => {
   expect(context).toHaveProperty('startedAt');
   expect(context).toHaveProperty('status');
   expect(typeof context.startedAt).toBe('number');
-  expect(['started', 'completed']).toContain(context.status);
+  expect(['started', 'complete']).toContain(context.status);
 };
 
 export const expectValidSessionId = (sessionId: string) => {
@@ -265,9 +265,9 @@ export const TEST_CONFIG = {
 // Test constants
 export const TEST_EVENTS = {
   FLOW_STARTED: 'flow_started',
-  FLOW_COMPLETED: 'flow_completed',
+  FLOW_COMPLETED: 'flow_complete',
   STEP_VIEWED: 'step_viewed',
-  STEP_COMPLETED: 'step_completed',
+  STEP_COMPLETED: 'step_complete',
   STEP_ABANDONED: 'step_abandoned',
   PAGE_VIEWED: 'page_viewed',
 } as const;

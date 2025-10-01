@@ -13,7 +13,10 @@ interface OnboredProviderProps {
 export function OnboredProvider({ children, config }: OnboredProviderProps) {
   useEffect(() => {
     if (!config) {
-      console.warn('[OnboredProvider] Failed to initialize:', new Error('Config is required'));
+      console.warn(
+        '[OnboredProvider] Failed to initialize:',
+        new Error('Config is required')
+      );
       return;
     }
 

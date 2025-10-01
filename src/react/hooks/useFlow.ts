@@ -43,7 +43,7 @@ export function useFlow(slug: string) {
   const complete = useCallback(
     (options: Options = {}) => {
       try {
-        onbored.completed({ slug, ...options });
+        onbored.complete({ slug, ...options });
       } catch (error) {
         console.warn('[useFlow] SDK not initialized yet:', error);
       }

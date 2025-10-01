@@ -33,9 +33,35 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url || '', `http://${req.headers.host}`);
   let filePath = url.pathname;
 
+  // Enable CORS for all requests
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle OPTIONS requests for CORS
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  // Mock API endpoints
+  if (filePath.startsWith('/ingest/')) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'success', timestamp: Date.now() }));
+    return;
+  }
+
+  // Health check
+  if (filePath === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'healthy' }));
+    return;
+  }
+
   // Default to index.html
   if (filePath === '/') {
-    filePath = '/index.html';
+    filePath = '/test-app.html';
   }
 
   // Remove leading slash
@@ -48,41 +74,51 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Try to serve from fixtures directory
+  // Try to serve from fixtures directory first
   const fixturesPath = path.join(__dirname, '..', 'fixtures');
   const fullPath = path.join(fixturesPath, filePath);
 
-  // Check if file exists
-  if (!fs.existsSync(fullPath)) {
-    // Try to serve from root directory
+  if (fs.existsSync(fullPath)) {
+    serveFile(fullPath, res);
+    return;
+  }
+
+  // Try to serve from dist directory (built SDK)
+  if (filePath.startsWith('dist/')) {
     const rootPath = path.join(__dirname, '..', '..');
     const fullRootPath = path.join(rootPath, filePath);
-
     if (fs.existsSync(fullRootPath)) {
       serveFile(fullRootPath, res);
-    } else {
-      // Return 404
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      res.end(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>404 - Not Found</title>
-        </head>
-        <body>
-          <h1>404 - Not Found</h1>
-          <p>The requested file was not found.</p>
-          <p>Available files:</p>
-          <ul>
-            <li><a href="/test-app.html">Test App</a></li>
-            <li><a href="/test-react-app.tsx">React Test App</a></li>
-          </ul>
-        </body>
-        </html>
-      `);
+      return;
     }
+  }
+
+  // Try to serve from root directory
+  const rootPath = path.join(__dirname, '..', '..');
+  const fullRootPath = path.join(rootPath, filePath);
+
+  if (fs.existsSync(fullRootPath)) {
+    serveFile(fullRootPath, res);
   } else {
-    serveFile(fullPath, res);
+    // Return 404
+    res.writeHead(404, { 'Content-Type': 'text/html' });
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>404 - Not Found</title>
+      </head>
+      <body>
+        <h1>404 - Not Found</h1>
+        <p>The requested file was not found: ${filePath}</p>
+        <p>Available files:</p>
+        <ul>
+          <li><a href="/test-app.html">Test App</a></li>
+          <li><a href="/test-react-app.tsx">React Test App</a></li>
+        </ul>
+      </body>
+      </html>
+    `);
   }
 });
 

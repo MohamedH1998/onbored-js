@@ -28,7 +28,7 @@ jest.mock('../lib', () => ({
     flow: jest.fn(),
     step: jest.fn(),
     skip: jest.fn(),
-    completed: jest.fn(),
+    complete: jest.fn(),
     _get: jest.fn(),
   },
 }));
@@ -133,7 +133,7 @@ describe('React Hooks', () => {
       const completeButton = screen.getByText('Complete Flow');
       fireEvent.click(completeButton);
 
-      expect(onbored.completed).toHaveBeenCalledWith({
+      expect(onbored.complete).toHaveBeenCalledWith({
         slug: TEST_FLOWS.ONBOARDING,
       });
     });
@@ -196,7 +196,7 @@ describe('React Hooks', () => {
 
     it('should handle complete errors gracefully', () => {
       (onbored._get as jest.Mock).mockReturnValue(true);
-      (onbored.completed as jest.Mock).mockImplementation(() => {
+      (onbored.complete as jest.Mock).mockImplementation(() => {
         throw new Error('Complete failed');
       });
 

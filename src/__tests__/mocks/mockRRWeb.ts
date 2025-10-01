@@ -103,7 +103,8 @@ class MockRRWeb {
       record.takeFullSnapshot();
     }, 10);
 
-    return record;
+    // Return the stop function as rrweb.record() returns a stop function
+    return record.stop;
   });
 
   // Mock recordWithPlugin function

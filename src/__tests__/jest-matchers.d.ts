@@ -20,4 +20,4 @@ declare module 'expect' {
   }
 }
 
-export {}
+export {};

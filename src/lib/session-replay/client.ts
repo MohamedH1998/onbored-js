@@ -150,6 +150,10 @@ export class SessionReplayClient {
     this.logger.debug('Custom event added', { tag, payload });
   }
 
+  public _getEvents(): eventWithTime[] {
+    return [...this.events];
+  }
+
   private _startUploadTimer(): void {
     this.uploadTimer = setInterval(() => {
       if (this.events.length > 0 && !this.isIdle) {

@@ -79,6 +79,11 @@
             display: none;
         }
     </style>
+    <script src="/dist/index.global.js"></script>
+    <script>
+        // Expose onbored from the IIFE bundle
+        window.onbored = OnBored.onbored;
+    </script>
 </head>
 <body>
     <div class="container">
@@ -307,7 +312,7 @@
         document.getElementById('complete-confirmation').addEventListener('click', () => {
             if (window.testState.sdk) {
                 window.testState.sdk.step('confirmation', { slug: 'onboarding' });
-                window.testState.sdk.completed({ slug: 'onboarding' });
+                window.testState.sdk.complete({ slug: 'onboarding' });
                 window.testUtils.log('Completed confirmation step and flow');
             }
         });

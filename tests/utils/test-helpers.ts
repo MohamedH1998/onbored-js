@@ -9,7 +9,10 @@
  * - Performance monitoring
  */
 
+/// <reference path="../types.d.ts" />
 import { Page, expect } from '@playwright/test';
+import { EventType } from '../../src/lib/types';
+import { SessionReplayOptions } from '../../src/lib/session-replay/types';
 
 export interface TestConfig {
   projectKey: string;
@@ -30,13 +33,24 @@ export const DEFAULT_TEST_CONFIG: TestConfig = {
 };
 
 export class OnBoredTestHelper {
-  constructor(private page: Page) {}
+  private page: Page;
+  constructor(page: Page) {
+    this.page = page;
+  }
 
   /**
    * Initialize the OnBored SDK with test configuration
    */
   async initializeSDK(config: Partial<TestConfig> = {}): Promise<void> {
     const finalConfig = { ...DEFAULT_TEST_CONFIG, ...config };
+
+    // Wait for SDK to be loaded
+    await this.page.waitForFunction(
+      () => typeof window.onbored !== 'undefined',
+      {
+        timeout: 5000,
+      }
+    );
 
     await this.page.evaluate(cfg => {
       window.onbored.init({
@@ -45,10 +59,9 @@ export class OnBoredTestHelper {
         env: cfg.environment,
         debug: cfg.debug,
         session_replay: cfg.sessionReplay
-          ? {
+          ? ({
               api_host: cfg.apiHost,
-              sessionId: 'test-session',
-            }
+            } as unknown as SessionReplayOptions)
           : false,
       });
     }, finalConfig);
@@ -107,7 +120,7 @@ export class OnBoredTestHelper {
   async completeFlow(slug: string, metadata: any = {}): Promise<void> {
     await this.page.evaluate(
       ({ flowSlug, meta }) => {
-        window.onbored.completed({ slug: flowSlug, ...meta });
+        window.onbored.complete({ slug: flowSlug, ...meta });
       },
       { flowSlug: slug, meta: metadata }
     );
@@ -119,7 +132,7 @@ export class OnBoredTestHelper {
   async captureEvent(eventType: string, data: any = {}): Promise<void> {
     await this.page.evaluate(
       ({ event, eventData }) => {
-        window.onbored.capture(event, eventData);
+        window.onbored.capture(event as EventType, eventData);
       },
       { event: eventType, eventData: data }
     );
@@ -322,12 +335,12 @@ export class OnBoredTestHelper {
   }
 
   /**
-   * Assert that a flow was completed
+   * Assert that a flow was complete
    */
   async assertFlowCompleted(slug: string): Promise<void> {
     const context = await this.getFlowContext(slug);
     expect(context).toBeDefined();
-    expect(context.status).toBe('completed');
+    expect(context.status).toBe('complete');
   }
 
   /**
@@ -529,7 +542,7 @@ export const TestAssertions = {
       return window.onbored._getFlowContext(flowSlug);
     }, slug);
     expect(context).toBeDefined();
-    expect(context.status).toBe('started');
+    expect(context?.status).toBe('started');
   },
 
   async assertFlowCompleted(page: Page, slug: string): Promise<void> {
@@ -537,7 +550,7 @@ export const TestAssertions = {
       return window.onbored._getFlowContext(flowSlug);
     }, slug);
     expect(context).toBeDefined();
-    expect(context.status).toBe('completed');
+    expect(context?.status).toBe('complete');
   },
 
   async assertSessionReplayActive(page: Page): Promise<void> {

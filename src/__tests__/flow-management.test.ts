@@ -106,41 +106,41 @@ describe('Flow Management', () => {
       await client.flow(TEST_FLOWS.ONBOARDING);
     });
 
-    it('should mark flow as completed', async () => {
-      await client.completed({ slug: TEST_FLOWS.ONBOARDING });
+    it('should mark flow as complete', async () => {
+      await client.complete({ slug: TEST_FLOWS.ONBOARDING });
 
       const context = client['flowContext'].get(TEST_FLOWS.ONBOARDING);
-      expect(context?.status).toBe('completed');
+      expect(context?.status).toBe('complete');
     });
 
     it('should update flow context status', async () => {
       const originalContext = client['flowContext'].get(TEST_FLOWS.ONBOARDING);
-      await client.completed({ slug: TEST_FLOWS.ONBOARDING });
+      await client.complete({ slug: TEST_FLOWS.ONBOARDING });
 
       const updatedContext = client['flowContext'].get(TEST_FLOWS.ONBOARDING);
       expect(updatedContext?.id).toBe(originalContext?.id);
       expect(updatedContext?.startedAt).toBe(originalContext?.startedAt);
-      expect(updatedContext?.status).toBe('completed');
+      expect(updatedContext?.status).toBe('complete');
     });
 
     it('should flush events immediately on completion', async () => {
       const flushSpy = jest.spyOn(client as any, '_flush');
 
-      await client.completed({ slug: TEST_FLOWS.ONBOARDING });
+      await client.complete({ slug: TEST_FLOWS.ONBOARDING });
 
       expect(flushSpy).toHaveBeenCalled();
     });
 
     it('should handle completion without active flow', async () => {
       // Try to complete a flow that doesn't exist
-      await client.completed({ slug: 'non-existent-flow' });
+      await client.complete({ slug: 'non-existent-flow' });
 
       // Should not throw error - only the onboarding flow should exist
       expect(client['flowContext'].size).toBe(1);
     });
 
     it('should save flow context to storage on completion', async () => {
-      await client.completed({ slug: TEST_FLOWS.ONBOARDING });
+      await client.complete({ slug: TEST_FLOWS.ONBOARDING });
 
       expect(mockStorage.sessionStorage.setItem).toHaveBeenCalled();
       const calls = mockStorage.sessionStorage.setItem.mock.calls;
@@ -166,7 +166,7 @@ describe('Flow Management', () => {
       // Check that event was captured
       expect(client['eventQueue'].length).toBeGreaterThan(0);
       const event = client['eventQueue'].find(
-        e => e.event_type === 'step_completed'
+        e => e.event_type === 'step_complete'
       );
       expect(event).toBeDefined();
       expect(event?.step_id).toBe(TEST_STEPS.WELCOME);
@@ -388,23 +388,23 @@ describe('Flow Management', () => {
       expect(event?.funnel_slug).toBe(TEST_FLOWS.ONBOARDING);
     });
 
-    it('should capture flow completed event', async () => {
-      await client.completed({ slug: TEST_FLOWS.ONBOARDING });
+    it('should capture flow complete event', async () => {
+      await client.complete({ slug: TEST_FLOWS.ONBOARDING });
 
       expect(client['eventQueue'].length).toBeGreaterThan(0);
       const event = client['eventQueue'].find(
-        e => e.event_type === 'flow_completed'
+        e => e.event_type === 'flow_complete'
       );
       expect(event).toBeDefined();
       expect(event?.funnel_slug).toBe(TEST_FLOWS.ONBOARDING);
     });
 
-    it('should capture step completed event', async () => {
+    it('should capture step complete event', async () => {
       await client.step(TEST_STEPS.WELCOME, { slug: TEST_FLOWS.ONBOARDING });
 
       expect(client['eventQueue'].length).toBeGreaterThan(0);
       const event = client['eventQueue'].find(
-        e => e.event_type === 'step_completed'
+        e => e.event_type === 'step_complete'
       );
       expect(event).toBeDefined();
       expect(event?.step_id).toBe(TEST_STEPS.WELCOME);
@@ -429,7 +429,7 @@ describe('Flow Management', () => {
       });
 
       const event = client['eventQueue'].find(
-        e => e.event_type === 'step_completed'
+        e => e.event_type === 'step_complete'
       );
       expect(event?.metadata).toEqual(expect.objectContaining(metadata));
     });
@@ -438,7 +438,7 @@ describe('Flow Management', () => {
       await client.step(TEST_STEPS.WELCOME, { slug: TEST_FLOWS.ONBOARDING });
 
       const event = client['eventQueue'].find(
-        e => e.event_type === 'step_completed'
+        e => e.event_type === 'step_complete'
       );
       expect(event).toBeDefined();
       if (event) {
@@ -480,11 +480,11 @@ describe('Flow Management', () => {
       // First create the flow
       await client.flow(TEST_FLOWS.ONBOARDING);
 
-      await client.completed({ slug: TEST_FLOWS.ONBOARDING });
+      await client.complete({ slug: TEST_FLOWS.ONBOARDING });
 
       // Should not throw error
       expect(client['flowContext'].get(TEST_FLOWS.ONBOARDING)?.status).toBe(
-        'completed'
+        'complete'
       );
     });
 
@@ -535,13 +535,13 @@ describe('Flow Management', () => {
       const promises = [
         client.step(TEST_STEPS.WELCOME, { slug: TEST_FLOWS.ONBOARDING }),
         client.skip(TEST_STEPS.FORM, { slug: TEST_FLOWS.ONBOARDING }),
-        client.completed({ slug: TEST_FLOWS.ONBOARDING }),
+        client.complete({ slug: TEST_FLOWS.ONBOARDING }),
       ];
 
       await Promise.all(promises);
 
       expect(client['flowContext'].get(TEST_FLOWS.ONBOARDING)?.status).toBe(
-        'completed'
+        'complete'
       );
       expect(client['eventQueue'].length).toBe(initialQueueLength + 3);
     });

@@ -31,18 +31,18 @@ export type OnboredClientOptions = {
 export type FlowContext = {
   id: string;
   startedAt: number;
-  status?: 'started' | 'completed' | 'abandoned';
+  status?: 'started' | 'complete' | 'abandoned';
   lastVisitedPath?: string;
 };
 
 export type EventType =
   | 'page_viewed'
   | 'flow_started'
-  | 'flow_completed'
+  | 'flow_complete'
   | 'step_viewed'
   | 'step_skipped'
   | 'step_abandoned'
-  | 'step_completed';
+  | 'step_complete';
 
 export type EventPayload = {
   id: string;
@@ -52,6 +52,7 @@ export type EventPayload = {
   step_id?: string;
   metadata?: Options;
   session_id: string;
+  sessionId?: string; // Backwards compatibility
   timestamp: string;
   project_key: string;
   url: string;
@@ -63,3 +64,27 @@ export type RetryEvent = {
   attempt: number;
   nextAttemptAt: number;
 };
+
+export interface OnboredClientInterface {
+  flow(slug: string, metadata?: Options): Promise<void>;
+  step(stepName: string, options: { slug: string } & Options): Promise<void>;
+  skip(stepName: string, options: { slug: string } & Options): Promise<void>;
+  complete(options: { slug: string } & Options): Promise<void>;
+  capture(
+    event_type: EventType,
+    data: Partial<
+      Omit<
+        EventPayload,
+        'id' | 'event_type' | 'session_id' | 'timestamp' | 'project_key'
+      >
+    >,
+    enqueue?: boolean
+  ): Promise<EventPayload | null>;
+  reset(): void;
+  destroy(): void;
+  _getEvents(): EventPayload[];
+  _getFlowContext(flowId: string): FlowContext | null;
+  _getSessionId(): string;
+  _getRecorder(): any;
+  _getRecorderEvents(): any[];
+}

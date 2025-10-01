@@ -9,6 +9,7 @@ import {
   RetryEvent,
   EventType,
   Options,
+  OnboredClientInterface,
 } from './types';
 import { eventPayloadSchema } from './schema';
 import { SessionReplayOptions } from './session-replay/types';
@@ -20,7 +21,7 @@ import { createSessionReplay } from './session-replay';
  *
  * An isomorphic Javascript client for interacting with OnBored.
  */
-export class OnboredClient {
+export class OnboredClient implements OnboredClientInterface {
   protected logger: Logger;
   protected env: string;
   protected debug: boolean;
@@ -106,7 +107,6 @@ export class OnboredClient {
     this.debug = settings.debug ?? false;
     this.logger = new Logger('[Onbored]', this.debug ? 'debug' : 'info');
 
-    this.sessionId = this._getSessionId();
     this.sessionTimeoutMs = 30 * 60 * 1000; // 30 minutes
     this.flowContext = new Map<string, FlowContext>();
 
@@ -116,6 +116,9 @@ export class OnboredClient {
     this.sessionStorageKey = settings.storage.sessionStorageKey ?? '';
     this.activityStorageKey = settings.storage.activityStorageKey ?? '';
     this.flowContextStorageKey = settings.storage.flowContextStorageKey ?? '';
+
+    // Get session ID AFTER storage keys are set
+    this.sessionId = this._getOrSetSessionId();
     this.headers = settings.global.headers ?? {};
     this.sessionReplay =
       settings.session_replay === true
@@ -139,6 +142,24 @@ export class OnboredClient {
   }
 
   private async _init() {
+    // @TODO: Add better validation for the sessionReplay object
+    if (this.sessionReplay && Object.keys(this.sessionReplay).length > 0) {
+      if (this.debug) this.logger.debug('Creating session replay recorder');
+      try {
+        this.recorder = await createSessionReplay(this.projectKey, {
+          sessionId: this.sessionId,
+          debug: this.debug,
+          ...this.sessionReplay,
+        });
+        this.capture('page_viewed', {
+          url: window.location.href,
+          ...(document.title && { title: document.title }),
+        });
+      } catch (recErr) {
+        this.logger.error('Failed to init session replay:', recErr);
+      }
+    }
+
     if (this.env === 'development') {
       this.logger.info('Dev mode enabled – no network requests will be sent');
       this.isInitializing = false;
@@ -150,20 +171,6 @@ export class OnboredClient {
     this._startFlushTimer();
 
     try {
-      // @TODO: Add better validation for the sessionReplay object
-      if (this.sessionReplay && Object.keys(this.sessionReplay).length > 0) {
-        if (this.debug) this.logger.debug('Creating session replay recorder');
-        try {
-          this.recorder = await createSessionReplay(this.projectKey, {
-            sessionId: this.sessionId,
-            debug: this.debug,
-            ...this.sessionReplay,
-          });
-        } catch (recErr) {
-          this.logger.error('Failed to init session replay:', recErr);
-        }
-      }
-
       try {
         const res = await fetch(this.api_host + '/ingest/session', {
           method: 'POST',
@@ -225,7 +232,7 @@ export class OnboredClient {
     }
   }
 
-  private _getSessionId(): string {
+  private _getOrSetSessionId(): string {
     const now = Date.now();
     let lastActivity = 0;
 
@@ -557,7 +564,7 @@ export class OnboredClient {
   }
 
   // Public API methods
-  async flow(slug: string) {
+  async flow(slug: string, metadata?: Options) {
     if (this.isInitializing) {
       this.queuedFlows.push(slug);
       this.logger.debug('Queued flow:', slug);
@@ -580,6 +587,7 @@ export class OnboredClient {
         flow_id: flowId,
         step_id: 'flow_started',
         funnel_slug: slug,
+        ...(metadata && { metadata }),
         session_id: this.sessionId,
         timestamp: timestamp,
         project_key: this.projectKey,
@@ -646,7 +654,7 @@ export class OnboredClient {
       return;
     }
 
-    this.capture('step_completed', {
+    this.capture('step_complete', {
       step_id: stepName,
       flow_id: context.id,
       funnel_slug: options.slug,
@@ -673,14 +681,14 @@ export class OnboredClient {
       },
     });
 
-    this.logger.debug(`Step completed: ${stepName} (flow: ${options.slug})`);
+    this.logger.debug(`Step skipped: ${stepName} (flow: ${options.slug})`);
   }
 
-  async completed(options: { slug: string } & Options) {
+  async complete(options: { slug: string } & Options) {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) return;
-    this.capture('flow_completed', {
+    this.capture('flow_complete', {
       flow_id: context.id,
       funnel_slug: options.slug,
       metadata: {
@@ -688,7 +696,7 @@ export class OnboredClient {
       },
     });
 
-    this.logger.debug('Flow completed:', {
+    this.logger.debug('Flow complete:', {
       flowId: context.id,
       slug: options.slug,
     });
@@ -696,7 +704,7 @@ export class OnboredClient {
     this.flowContext.set(options.slug, {
       id: context.id,
       startedAt: context.startedAt,
-      status: 'completed',
+      status: 'complete',
     });
 
     this._saveFlowContextToStorage();
@@ -713,13 +721,21 @@ export class OnboredClient {
     >,
     enqueue: boolean = true
   ): Promise<EventPayload | null> {
+    // Extract known fields and treat the rest as metadata
+    const { flow_id, step_id, funnel_slug, metadata } = data as Partial<
+      Omit<
+        EventPayload,
+        'id' | 'event_type' | 'session_id' | 'timestamp' | 'project_key'
+      >
+    >;
+
     const payload: EventPayload = {
       id: crypto.randomUUID(),
       event_type,
-      ...(data.flow_id && { flow_id: data.flow_id }),
-      ...(data.step_id && { step_id: data.step_id }),
-      ...(data.metadata && { metadata: data.metadata }),
-      ...(data.funnel_slug && { funnel_slug: data.funnel_slug }),
+      ...(flow_id && { flow_id }),
+      ...(step_id && { step_id }),
+      ...(funnel_slug && { funnel_slug }),
+      ...(metadata && { metadata }),
       session_id: this.sessionId,
       timestamp: new Date().toISOString(),
       project_key: this.projectKey,
@@ -826,15 +842,18 @@ export class OnboredClient {
     return [...this.eventQueue];
   }
 
+  _getSessionId() {
+    return this.sessionId;
+  }
+
   _getRecorder() {
     return this.recorder;
   }
 
   _getRecorderEvents() {
-    // Return mock events for testing
-    return this.eventQueue.filter(
-      event =>
-        event.event_type === 'step_viewed' || event.event_type === 'page_viewed'
-    );
+    if (this.recorder) {
+      return this.eventQueue;
+    }
+    return [];
   }
 }
