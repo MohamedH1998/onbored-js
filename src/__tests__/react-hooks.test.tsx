@@ -2,7 +2,7 @@
  * React Hooks Tests
  *
  * Comprehensive tests for OnBored React hooks covering:
- * - useFlow hook functionality
+ * - useFunnel hook functionality
  * - OnboredProvider integration
  * - Hook integration scenarios
  * - Error handling and edge cases
@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { OnboredProvider, useFlow } from '../react';
+import { OnboredProvider, useFunnel, useFlow } from '../react';
 import {
   createMockOptions,
   createMockProjectKey,
@@ -25,7 +25,8 @@ import { mockApiResponses } from './mocks/mockFetch';
 jest.mock('../lib', () => ({
   onbored: {
     init: jest.fn(),
-    flow: jest.fn(),
+    funnel: jest.fn(),
+    flow: jest.fn(), // Keep for backward compatibility testing
     step: jest.fn(),
     skip: jest.fn(),
     complete: jest.fn(),
@@ -48,7 +49,7 @@ describe('React Hooks', () => {
 
   describe('useFlow Hook', () => {
     const TestComponent = ({ slug }: { slug: string }) => {
-      const { step, skip, complete } = useFlow(slug);
+      const { step, skip, complete } = useFunnel(slug);
 
       return (
         <div>
@@ -65,7 +66,7 @@ describe('React Hooks', () => {
       render(<TestComponent slug={TEST_FLOWS.ONBOARDING} />);
 
       await waitFor(() => {
-        expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
+        expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
       });
     });
 
@@ -79,7 +80,7 @@ describe('React Hooks', () => {
 
       await waitFor(
         () => {
-          expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
+          expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
         },
         { timeout: 1000 }
       );
@@ -149,7 +150,7 @@ describe('React Hooks', () => {
       }).not.toThrow();
 
       // Verify onbored.flow was never called successfully
-      expect(onbored.flow).not.toHaveBeenCalled();
+      expect(onbored.funnel).not.toHaveBeenCalled();
     });
 
     it('should handle step errors gracefully', () => {
@@ -166,7 +167,7 @@ describe('React Hooks', () => {
       fireEvent.click(stepButton);
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[useFlow] SDK not initialized yet:',
+        '[useFunnel] SDK not initialized yet:',
         expect.any(Error)
       );
 
@@ -187,7 +188,7 @@ describe('React Hooks', () => {
       fireEvent.click(skipButton);
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[useFlow] SDK not initialized yet:',
+        '[useFunnel] SDK not initialized yet:',
         expect.any(Error)
       );
 
@@ -208,7 +209,7 @@ describe('React Hooks', () => {
       fireEvent.click(completeButton);
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[useFlow] SDK not initialized yet:',
+        '[useFunnel] SDK not initialized yet:',
         expect.any(Error)
       );
 
@@ -223,13 +224,13 @@ describe('React Hooks', () => {
       );
 
       await waitFor(() => {
-        expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
+        expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
       });
 
       rerender(<TestComponent slug={TEST_FLOWS.CHECKOUT} />);
 
       await waitFor(() => {
-        expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.CHECKOUT);
+        expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.CHECKOUT);
       });
     });
   });
@@ -338,8 +339,8 @@ describe('React Hooks', () => {
 
   describe('Hook Integration', () => {
     const MultiFlowComponent = () => {
-      const onboardingFlow = useFlow(TEST_FLOWS.ONBOARDING);
-      const checkoutFlow = useFlow(TEST_FLOWS.CHECKOUT);
+      const onboardingFlow = useFunnel(TEST_FLOWS.ONBOARDING);
+      const checkoutFlow = useFunnel(TEST_FLOWS.CHECKOUT);
 
       return (
         <div>
@@ -358,8 +359,8 @@ describe('React Hooks', () => {
 
       render(<MultiFlowComponent />);
 
-      expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
-      expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.CHECKOUT);
+      expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
+      expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.CHECKOUT);
     });
 
     it('should handle concurrent flow operations', () => {
@@ -386,19 +387,19 @@ describe('React Hooks', () => {
 
       const { rerender } = render(<MultiFlowComponent />);
 
-      expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
-      expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.CHECKOUT);
+      expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
+      expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.CHECKOUT);
 
       rerender(<MultiFlowComponent />);
 
       // Should not call flow again
-      expect(onbored.flow).toHaveBeenCalledTimes(2);
+      expect(onbored.funnel).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('Error Boundaries', () => {
     const ErrorComponent = () => {
-      const { step } = useFlow(TEST_FLOWS.ONBOARDING);
+      const { step } = useFunnel(TEST_FLOWS.ONBOARDING);
 
       // Simulate an error in the component
       throw new Error('Component error');
@@ -424,7 +425,7 @@ describe('React Hooks', () => {
       delete (global as any).window;
 
       const TestComponent = () => {
-        const { step } = useFlow(TEST_FLOWS.ONBOARDING);
+        const { step } = useFunnel(TEST_FLOWS.ONBOARDING);
         return <div>Test</div>;
       };
 
@@ -440,7 +441,7 @@ describe('React Hooks', () => {
       (onbored._get as jest.Mock).mockReturnValue(true);
 
       const TestComponent = () => {
-        const { step } = useFlow(TEST_FLOWS.ONBOARDING);
+        const { step } = useFunnel(TEST_FLOWS.ONBOARDING);
         return <div>Test</div>;
       };
 
@@ -450,7 +451,7 @@ describe('React Hooks', () => {
       // Second render (hydration)
       rerender(<TestComponent />);
 
-      expect(onbored.flow).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
+      expect(onbored.funnel).toHaveBeenCalledWith(TEST_FLOWS.ONBOARDING);
     });
   });
 
@@ -461,7 +462,7 @@ describe('React Hooks', () => {
       const renderSpy = jest.fn();
       const TestComponent = () => {
         renderSpy();
-        const { step } = useFlow(TEST_FLOWS.ONBOARDING);
+        const { step } = useFunnel(TEST_FLOWS.ONBOARDING);
         return <div>Test</div>;
       };
 
@@ -478,7 +479,7 @@ describe('React Hooks', () => {
       (onbored._get as jest.Mock).mockReturnValue(true);
 
       const TestComponent = () => {
-        const { step, skip, complete } = useFlow(TEST_FLOWS.ONBOARDING);
+        const { step, skip, complete } = useFunnel(TEST_FLOWS.ONBOARDING);
 
         const stepRef = React.useRef(step);
         const skipRef = React.useRef(skip);

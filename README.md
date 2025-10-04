@@ -9,7 +9,7 @@ Onbored is a retention OS designed to solve the most critical problem in SaaS: u
 
 ## ✨ Features
 
-- **Flow Tracking** - Track complete user journeys with flow start, steps, skips, and completions
+- **Funnel Tracking** - Track complete user conversion journeys with funnel start, steps, skips, and completions
 - **Session Replay** - Record and replay user sessions to see exactly what happened
 - **Automatic Page Views** - Automatically capture navigation and page view events
 - **Offline Support** - Queue events with retry logic and exponential backoff
@@ -52,8 +52,8 @@ onbored.init({
   debug: true,
 });
 
-// Track your first flow
-onbored.flow('onboarding');
+// Track your first funnel
+onbored.funnel('onboarding');
 onbored.step('profile-setup', { slug: 'onboarding' });
 onbored.complete({ slug: 'onboarding' });
 ```
@@ -78,7 +78,7 @@ function App() {
 }
 
 function OnboardingFlow() {
-  const { step, skip, complete } = useFlow('onboarding');
+  const { step, skip, complete } = useFunnel('onboarding');
 
   return (
     <div>
@@ -96,18 +96,18 @@ That's it! 🎉 Head to your [Onbored dashboard](https://onbored.io) to see your
 
 ## 📚 Core Concepts
 
-### Flows
+### Funnels
 
-A **flow** represents a complete user journey (e.g., onboarding, checkout, feature tour). Each flow has a unique slug identifier and tracks the user's progress through multiple steps.
+A **funnel** represents a complete user conversion journey (e.g., onboarding, checkout, feature tour). Each funnel has a unique slug identifier and tracks the user's progress through multiple steps.
 
 ```typescript
-// Start a new flow
-onbored.flow('onboarding');
+// Start a new funnel
+onbored.funnel('onboarding');
 ```
 
 ### Steps
 
-**Steps** are individual actions or milestones within a flow. Track when users complete important actions.
+**Steps** are individual actions or milestones within a funnel. Track when users complete important actions.
 
 ```typescript
 // Track a completed step
@@ -120,7 +120,7 @@ onbored.step('profile-setup', {
 
 ### Skips
 
-When users skip optional steps, track them with **skip** to understand which parts of your flow are being bypassed.
+When users skip optional steps, track them with **skip** to understand which parts of your funnel are being bypassed.
 
 ```typescript
 // Track a skipped step
@@ -132,10 +132,10 @@ onbored.skip('team-invite', {
 
 ### Completions
 
-Mark a flow as complete when the user finishes the entire journey.
+Mark a funnel as complete when the user finishes the entire journey.
 
 ```typescript
-// Complete a flow
+// Complete a funnel
 onbored.complete({
   slug: 'onboarding',
   totalSteps: 5,
@@ -187,19 +187,19 @@ onbored.init({
 
 ---
 
-### `onbored.flow(slug, metadata?)`
+### `onbored.funnel(slug, metadata?)`
 
-Start tracking a new flow. Creates a unique flow ID on the server.
+Start tracking a new funnel. Creates a unique flow instance ID on the server.
 
 **Parameters:**
 
-- `slug` (string): Unique identifier for the flow
-- `metadata` (object, optional): Additional flow context
+- `slug` (string): Unique identifier for the funnel
+- `metadata` (object, optional): Additional funnel context
 
 **Example:**
 
 ```typescript
-onbored.flow('checkout', {
+onbored.funnel('checkout', {
   cartValue: 299.99,
   items: 3,
 });
@@ -209,12 +209,12 @@ onbored.flow('checkout', {
 
 ### `onbored.step(stepName, options)`
 
-Track completion of a step within a flow.
+Track completion of a step within a funnel.
 
 **Parameters:**
 
 - `stepName` (string): Name of the step
-- `options.slug` (string): Flow slug this step belongs to
+- `options.slug` (string): Funnel slug this step belongs to
 - `options.*` (any): Additional step metadata
 
 **Example:**
@@ -236,7 +236,7 @@ Track when a user skips an optional step.
 **Parameters:**
 
 - `stepName` (string): Name of the skipped step
-- `options.slug` (string): Flow slug this step belongs to
+- `options.slug` (string): Funnel slug this step belongs to
 - `options.*` (any): Additional context (e.g., reason)
 
 **Example:**
@@ -252,11 +252,11 @@ onbored.skip('add-team-members', {
 
 ### `onbored.complete(options)`
 
-Mark a flow as complete.
+Mark a funnel as complete.
 
 **Parameters:**
 
-- `options.slug` (string): Flow slug to complete
+- `options.slug` (string): Funnel slug to complete
 - `options.*` (any): Additional completion metadata
 
 **Example:**
@@ -393,27 +393,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ---
 
-### `useFlow(slug)`
+### `useFunnel(slug)`
 
-Hook for managing flows within React components. Automatically starts the flow on mount.
+Hook for managing funnels within React components. Automatically starts the funnel on mount.
 
 **Parameters:**
 
-- `slug` (string): Flow identifier
+- `slug` (string): Funnel identifier
 
 **Returns:**
 
 - `step(stepName, options?)` - Track a completed step
 - `skip(stepName, options?)` - Track a skipped step
-- `complete(options?)` - Mark flow as complete
+- `complete(options?)` - Mark funnel as complete
 
 **Example:**
 
 ```tsx
-import { useFlow } from 'onbored-js/react';
+import { useFunnel } from 'onbored-js/react';
 
 function OnboardingWizard() {
-  const { step, skip, complete } = useFlow('onboarding');
+  const { step, skip, complete } = useFunnel('onboarding');
 
   const handleProfileComplete = () => {
     step('profile-setup', { method: 'email' });
@@ -482,7 +482,7 @@ onbored.init({
   storage: {
     sessionStorageKey: 'my-app-session',
     activityStorageKey: 'my-app-activity',
-    flowContextStorageKey: 'my-app-flow-context',
+    flowContextStorageKey: 'my-app-funnel-context',
   },
 });
 ```
@@ -519,7 +519,7 @@ const projectA = new OnboredClient('pk_live_project_a', {
   storage: {
     sessionStorageKey: 'projecta-session',
     activityStorageKey: 'projecta-activity',
-    flowContextStorageKey: 'projecta-flow',
+    flowContextStorageKey: 'projecta-funnel',
   },
 });
 
@@ -528,13 +528,13 @@ const projectB = new OnboredClient('pk_live_project_b', {
   storage: {
     sessionStorageKey: 'projectb-session',
     activityStorageKey: 'projectb-activity',
-    flowContextStorageKey: 'projectb-flow',
+    flowContextStorageKey: 'projectb-funnel',
   },
 });
 
 // Use independently
-await projectA.flow('onboarding');
-await projectB.flow('checkout');
+await projectA.funnel('onboarding');
+await projectB.funnel('checkout');
 ```
 
 ---
@@ -551,8 +551,8 @@ onbored.init({
 });
 
 // Events are logged to console but not sent to server
-onbored.flow('test-flow');
-// Console: "Mock flow started: test-flow"
+onbored.funnel('test-flow');
+// Console: "Mock funnel started: test-flow"
 ```
 
 **Debug Helper:**
@@ -593,7 +593,7 @@ onbored.step('profile-setup', {
 ### SaaS Onboarding with React
 
 ```tsx
-import { OnboredProvider, useFlow } from 'onbored-js/react';
+import { OnboredProvider, useFunnel } from 'onbored-js/react';
 
 function App() {
   return (
@@ -615,7 +615,7 @@ function App() {
 }
 
 function OnboardingWizard() {
-  const { step, skip, complete } = useFlow('onboarding');
+  const { step, skip, complete } = useFunnel('onboarding');
   const [currentStep, setCurrentStep] = useState(1);
 
   const handleNext = (stepName: string, metadata?: any) => {
@@ -676,8 +676,8 @@ onbored.init({
   },
 });
 
-// Start checkout flow
-onbored.flow('checkout', {
+// Start checkout funnel
+onbored.funnel('checkout', {
   cartValue: 299.99,
   items: 3,
 });
@@ -735,7 +735,7 @@ The SDK automatically tracks when these elements become visible using Intersecti
 ┌─────────────────┐
 │  Onbored SDK    │◄─── Session Management
 │                 │◄─── Event Queue & Retry
-│                 │◄─── Flow Context
+│                 │◄─── Funnel Context
 └────────┬────────┘
          │
          ▼
@@ -743,7 +743,7 @@ The SDK automatically tracks when these elements become visible using Intersecti
 │  API Endpoints  │
 │                 │
 │ /ingest/session │─── Register sessions
-│ /ingest/flow    │─── Register flows
+│ /ingest/flow    │─── Register funnels
 │ /ingest/events  │─── Batch event ingestion
 └─────────────────┘
 ```
@@ -753,21 +753,21 @@ The SDK automatically tracks when these elements become visible using Intersecti
 - Events are queued in memory and flushed every 5 seconds
 - Failed requests retry with exponential backoff (up to 5 attempts)
 - Events are sent via `sendBeacon` on page unload
-- Flow completion events are flushed immediately
+- Funnel completion events are flushed immediately
 
 ### Session Management
 
 - Sessions expire after 30 minutes of inactivity
 - Session IDs are stored in localStorage
-- Flow contexts are stored in sessionStorage
+- Funnel contexts are stored in sessionStorage
 - Automatic session regeneration on expiration
 
-### Flow Context
+### Funnel Context
 
-- Each flow gets a unique server-generated ID
-- Flow state is persisted across page reloads
-- Automatic page view tracking for active flows
-- Flow completion triggers immediate event flush
+- Each funnel instance gets a unique server-generated flow ID
+- Funnel state is persisted across page reloads
+- Automatic page view tracking for active funnels
+- Funnel completion triggers immediate event flush
 
 ---
 
@@ -796,7 +796,7 @@ onbored.init({
 
 ### React hooks not working
 
-**Issue:** `useFlow` throws "SDK not initialized"
+**Issue:** `useFunnel` throws "SDK not initialized"
 
 **Solution:** Ensure `OnboredProvider` wraps your components
 
@@ -830,18 +830,17 @@ try {
 
 ---
 
-### Flow context lost on page reload
+### Funnel context lost on page reload
 
-**Issue:** Flow context not restored after navigation
+**Issue:** Funnel context not restored after navigation
 
-**Solution:** Flow contexts are stored in sessionStorage. Ensure:
+**Solution:** Funnel contexts are stored in sessionStorage. Ensure:
 
 1. You're using the same `projectKey`
 2. SessionStorage is available
-3. Flow was properly initialized before navigation
+3. Funnel was properly initialized before navigation
 
 ---
-
 ## 🤝 Contributing
 
 We welcome contributions! Please see our contributing guidelines for more details.

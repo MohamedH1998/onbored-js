@@ -574,8 +574,8 @@ describe('Session Replay', () => {
       // Wait for initialization
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Create a flow
-      await client.flow('test-flow');
+      // Create a funnel
+      await client.funnel('test-flow');
 
       // Add custom event
       if (client['recorder']) {
