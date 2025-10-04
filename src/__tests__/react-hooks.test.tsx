@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { OnboredProvider, useFunnel, useFlow } from '../react';
+import { OnboredProvider, useFunnel } from '../react';
 import {
   createMockOptions,
   createMockProjectKey,
@@ -47,7 +47,7 @@ describe('React Hooks', () => {
     cleanupTestEnvironment();
   });
 
-  describe('useFlow Hook', () => {
+  describe('useFunnel Hook', () => {
     const TestComponent = ({ slug }: { slug: string }) => {
       const { step, skip, complete } = useFunnel(slug);
 
