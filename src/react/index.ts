@@ -2,7 +2,7 @@
 export { OnboredProvider } from './provider';
 
 // Hooks
-export { useFlow } from './hooks/useFlow';
+export { useFunnel } from './hooks/useFunnel';
 
 // Types
 export type { OnboredClientOptions } from '../lib/types';

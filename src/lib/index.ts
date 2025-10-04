@@ -22,6 +22,8 @@ export const onbored = {
     return instance;
   },
 
+  funnel: (...args: Parameters<OnboredClient['funnel']>) =>
+    onbored._get().funnel(...args),
   flow: (...args: Parameters<OnboredClient['flow']>) =>
     onbored._get().flow(...args),
   step: (...args: Parameters<OnboredClient['step']>) =>

@@ -66,7 +66,7 @@ export type RetryEvent = {
 };
 
 export interface OnboredClientInterface {
-  flow(slug: string, metadata?: Options): Promise<void>;
+  funnel(slug: string, metadata?: Options): Promise<void>;
   step(stepName: string, options: { slug: string } & Options): Promise<void>;
   skip(stepName: string, options: { slug: string } & Options): Promise<void>;
   complete(options: { slug: string } & Options): Promise<void>;

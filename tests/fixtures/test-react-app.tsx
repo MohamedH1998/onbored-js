@@ -3,18 +3,18 @@
  *
  * A comprehensive React test application for OnBored SDK testing including:
  * - OnboredProvider setup
- * - useFlow hook usage
+ * - useFunnel hook usage
  * - Multiple flow scenarios
  * - Error handling
  * - Performance testing
  */
 
 import React, { useState, useEffect } from 'react';
-import { OnboredProvider, useFlow } from '../../src/react';
+import { OnboredProvider, useFunnel } from '../../src/react';
 
-// Test component for useFlow hook
+// Test component for useFunnel hook
 const FlowTestComponent: React.FC<{ slug: string }> = ({ slug }) => {
-  const { step, skip, complete } = useFlow(slug);
+  const { step, skip, complete } = useFunnel(slug);
   const [stepCount, setStepCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -147,11 +147,6 @@ const ErrorTestComponent: React.FC = () => {
 
   const triggerError = () => {
     setShouldError(true);
-  };
-
-  const handleError = (error: Error) => {
-    setError(error.message);
-    setShouldError(false);
   };
 
   if (error) {

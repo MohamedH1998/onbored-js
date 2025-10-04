@@ -196,7 +196,7 @@ export class OnboredClient implements OnboredClientInterface {
       this._trackPageView();
       this._enableStepViewTracking();
 
-      this.queuedFlows.forEach(flow => this.flow(flow));
+      this.queuedFlows.forEach(flow => this.funnel(flow));
       this.queuedFlows = [];
     } catch (err) {
       this.logger.error('Initialization failed:', err);
@@ -562,17 +562,17 @@ export class OnboredClient implements OnboredClientInterface {
   }
 
   // Public API methods
-  async flow(slug: string, metadata?: Options) {
+  async funnel(slug: string, metadata?: Options) {
     if (this.isInitializing) {
       this.queuedFlows.push(slug);
-      this.logger.debug('Queued flow:', slug);
+      this.logger.debug('Queued funnel:', slug);
       return;
     }
 
     await this.waitForInit();
 
     if (this.flowContext.has(slug)) {
-      this.logger.debug(`Flow ${slug} already exists`);
+      this.logger.debug(`Funnel ${slug} already exists`);
       return;
     }
 
@@ -603,7 +603,7 @@ export class OnboredClient implements OnboredClientInterface {
       this._saveFlowContextToStorage();
 
       if (this.env === 'development') {
-        this.logger.info('Mock flow started:', slug);
+        this.logger.info('Mock funnel started:', slug);
         // Queue the event in development mode
         this.eventQueue.push(payload);
         this._processQueuedStepViews(slug);
@@ -618,14 +618,14 @@ export class OnboredClient implements OnboredClientInterface {
 
       const data: { status: string } = await response.json();
       if (data.status !== 'ok') {
-        this.logger.error('Flow registration failed:', data);
+        this.logger.error('Funnel registration failed:', data);
         return;
       }
       this.trackingPageviewsForFlows.add(flowId);
 
       this._processQueuedStepViews(slug);
     } catch (err) {
-      this.logger.error('Flow registration failed:', err);
+      this.logger.error('Funnel registration failed:', err);
     }
   }
 

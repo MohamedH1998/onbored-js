@@ -1,3 +1,3 @@
 export { onbored } from './lib';
 export { OnboredProvider } from './react/provider';
-export { useFlow } from './react/hooks/useFlow';
+export { useFunnel } from './react/hooks/useFunnel';

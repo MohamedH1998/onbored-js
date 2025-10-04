@@ -2,14 +2,14 @@ import { useEffect, useCallback } from 'react';
 import { onbored } from '../../lib';
 import { Options } from '../../lib/types';
 
-export function useFlow(slug: string) {
+export function useFunnel(slug: string) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const checkInit = () => {
       try {
         onbored._get();
-        onbored.flow(slug);
+        onbored.funnel(slug);
       } catch (error) {
         setTimeout(checkInit, 100);
       }
@@ -23,7 +23,7 @@ export function useFlow(slug: string) {
       try {
         onbored.step(stepName, { slug, ...options });
       } catch (error) {
-        console.warn('[useFlow] SDK not initialized yet:', error);
+        console.warn('[useFunnel] SDK not initialized yet:', error);
       }
     },
     [slug]
@@ -34,7 +34,7 @@ export function useFlow(slug: string) {
       try {
         onbored.skip(stepName, { slug, ...options });
       } catch (error) {
-        console.warn('[useFlow] SDK not initialized yet:', error);
+        console.warn('[useFunnel] SDK not initialized yet:', error);
       }
     },
     [slug]
@@ -45,7 +45,7 @@ export function useFlow(slug: string) {
       try {
         onbored.complete({ slug, ...options });
       } catch (error) {
-        console.warn('[useFlow] SDK not initialized yet:', error);
+        console.warn('[useFunnel] SDK not initialized yet:', error);
       }
     },
     [slug]

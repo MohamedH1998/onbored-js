@@ -41,7 +41,7 @@ describe('Flow Management', () => {
 
   describe('Flow Creation', () => {
     it('should create flow with valid slug', async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
 
       expect(client['flowContext'].has(TEST_FLOWS.ONBOARDING)).toBe(true);
       const context = client['flowContext'].get(TEST_FLOWS.ONBOARDING);
@@ -50,7 +50,7 @@ describe('Flow Management', () => {
     });
 
     it('should generate unique flow ID', async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
 
       const context = client['flowContext'].get(TEST_FLOWS.ONBOARDING);
       expect(context?.id).toBeTruthy();
@@ -60,7 +60,7 @@ describe('Flow Management', () => {
     });
 
     it('should store flow context', async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
 
       const context = client['flowContext'].get(TEST_FLOWS.ONBOARDING);
       expect(context).toBeDefined();
@@ -76,23 +76,23 @@ describe('Flow Management', () => {
       });
 
       // Call flow before initialization completes
-      prodClient.flow(TEST_FLOWS.ONBOARDING);
+      prodClient.funnel(TEST_FLOWS.ONBOARDING);
 
       expect(prodClient['queuedFlows']).toContain(TEST_FLOWS.ONBOARDING);
     });
 
     it('should prevent duplicate flows', async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
 
       expect(client['flowContext'].size).toBe(1);
       expect(client['flowContext'].has(TEST_FLOWS.ONBOARDING)).toBe(true);
     });
 
     it('should handle multiple different flows', async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
-      await client.flow(TEST_FLOWS.CHECKOUT);
-      await client.flow(TEST_FLOWS.SIGNUP);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.CHECKOUT);
+      await client.funnel(TEST_FLOWS.SIGNUP);
 
       expect(client['flowContext'].size).toBe(3);
       expect(client['flowContext'].has(TEST_FLOWS.ONBOARDING)).toBe(true);
@@ -103,7 +103,7 @@ describe('Flow Management', () => {
 
   describe('Flow Completion', () => {
     beforeEach(async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
     });
 
     it('should mark flow as complete', async () => {
@@ -157,7 +157,7 @@ describe('Flow Management', () => {
 
   describe('Step Management', () => {
     beforeEach(async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
     });
 
     it('should track step completion', async () => {
@@ -246,7 +246,7 @@ describe('Flow Management', () => {
       expect(newClient['queuedStepViews'].length).toBe(1);
 
       // Create the flow
-      await newClient.flow(TEST_FLOWS.ONBOARDING);
+      await newClient.funnel(TEST_FLOWS.ONBOARDING);
 
       // Queued step should be processed
       expect(newClient['queuedStepViews'].length).toBe(0);
@@ -279,7 +279,7 @@ describe('Flow Management', () => {
 
   describe('Flow Context Persistence', () => {
     it('should save flow context to sessionStorage', async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
 
       expect(mockStorage.sessionStorage.setItem).toHaveBeenCalled();
       const calls = mockStorage.sessionStorage.setItem.mock.calls;
@@ -365,7 +365,7 @@ describe('Flow Management', () => {
 
   describe('Event Capture', () => {
     beforeEach(async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
     });
 
     it('should capture flow started event', async () => {
@@ -378,7 +378,7 @@ describe('Flow Management', () => {
         debug: true,
       });
 
-      await newClient.flow(TEST_FLOWS.ONBOARDING);
+      await newClient.funnel(TEST_FLOWS.ONBOARDING);
 
       expect(newClient['eventQueue'].length).toBeGreaterThan(0);
       const event = newClient['eventQueue'].find(
@@ -449,7 +449,7 @@ describe('Flow Management', () => {
 
   describe('Error Handling', () => {
     beforeEach(async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
     });
 
     it('should handle flow creation errors gracefully', async () => {
@@ -462,7 +462,7 @@ describe('Flow Management', () => {
       });
 
       // Call flow - it will be queued because client is still initializing
-      prodClient.flow(TEST_FLOWS.ONBOARDING);
+      prodClient.funnel(TEST_FLOWS.ONBOARDING);
 
       // Flow is queued immediately (sync operation)
       expect(prodClient['queuedFlows']).toContain(TEST_FLOWS.ONBOARDING);
@@ -478,7 +478,7 @@ describe('Flow Management', () => {
 
     it('should handle completion errors gracefully', async () => {
       // First create the flow
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
 
       await client.complete({ slug: TEST_FLOWS.ONBOARDING });
 
@@ -493,7 +493,7 @@ describe('Flow Management', () => {
         throw new Error('Storage error');
       });
 
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
 
       // Should not throw error - flow should still be in memory
       expect(client['flowContext'].size).toBe(1);
@@ -503,9 +503,9 @@ describe('Flow Management', () => {
   describe('Concurrent Operations', () => {
     it('should handle concurrent flow operations', async () => {
       const promises = [
-        client.flow(TEST_FLOWS.ONBOARDING),
-        client.flow(TEST_FLOWS.CHECKOUT),
-        client.flow(TEST_FLOWS.SIGNUP),
+        client.funnel(TEST_FLOWS.ONBOARDING),
+        client.funnel(TEST_FLOWS.CHECKOUT),
+        client.funnel(TEST_FLOWS.SIGNUP),
       ];
 
       await Promise.all(promises);
@@ -514,7 +514,7 @@ describe('Flow Management', () => {
     });
 
     it('should handle concurrent step operations', async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
       const initialQueueLength = client['eventQueue'].length;
 
       const promises = [
@@ -529,7 +529,7 @@ describe('Flow Management', () => {
     });
 
     it('should handle mixed operations', async () => {
-      await client.flow(TEST_FLOWS.ONBOARDING);
+      await client.funnel(TEST_FLOWS.ONBOARDING);
       const initialQueueLength = client['eventQueue'].length;
 
       const promises = [
