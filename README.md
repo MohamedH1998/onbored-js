@@ -16,7 +16,7 @@ Onbored is a retention OS designed to solve the most critical problem in SaaS: u
 - **React Integration** - First-class React support with hooks and context providers
 - **Type Safety** - Full TypeScript support with comprehensive types
 - **Development Mode** - Test locally without sending events to production
-- **Multi-Instance** - Support for multiple projects and tenants
+- **Singleton Design** - Simple initialization with a single global instance (multi-instance coming soon)
 - **Lightweight** - Small bundle size with minimal dependencies
 
 ---
@@ -61,7 +61,7 @@ onbored.complete({ slug: 'onboarding' });
 **React**
 
 ```tsx
-import { OnboredProvider, useFlow } from 'onbored-js/react';
+import { OnboredProvider, useFunnel } from 'onbored-js/react';
 
 function App() {
   return (
@@ -189,7 +189,7 @@ onbored.init({
 
 ### `onbored.funnel(slug, metadata?)`
 
-Start tracking a new funnel. Creates a unique flow instance ID on the server.
+Start tracking a new funnel. Creates a unique flow instance ID.
 
 **Parameters:**
 
@@ -507,38 +507,6 @@ onbored.init({
 
 ---
 
-### Multi-Instance Setup
-
-Create multiple SDK instances for different projects or tenants.
-
-```typescript
-import { OnboredClient } from 'onbored-js/lib';
-
-const projectA = new OnboredClient('pk_live_project_a', {
-  user_id: 'user_123',
-  storage: {
-    sessionStorageKey: 'projecta-session',
-    activityStorageKey: 'projecta-activity',
-    flowContextStorageKey: 'projecta-funnel',
-  },
-});
-
-const projectB = new OnboredClient('pk_live_project_b', {
-  user_id: 'user_123',
-  storage: {
-    sessionStorageKey: 'projectb-session',
-    activityStorageKey: 'projectb-activity',
-    flowContextStorageKey: 'projectb-funnel',
-  },
-});
-
-// Use independently
-await projectA.funnel('onboarding');
-await projectB.funnel('checkout');
-```
-
----
-
 ## 🛠️ Development Mode
 
 Run the SDK locally without sending events to production.
@@ -569,13 +537,8 @@ window.__onboredFlush();
 The SDK is written in TypeScript and includes comprehensive type definitions.
 
 ```typescript
-import type {
-  OnboredClientOptions,
-  EventPayload,
-  FlowContext,
-  Options,
-  EventType,
-} from 'onbored-js/lib/types';
+import { onbored } from 'onbored-js';
+import type { OnboredClientOptions } from 'onbored-js/react';
 
 // All methods are fully typed
 onbored.step('profile-setup', {
@@ -764,7 +727,7 @@ The SDK automatically tracks when these elements become visible using Intersecti
 
 ### Funnel Context
 
-- Each funnel instance gets a unique server-generated flow ID
+- Each funnel instance gets a unique client-generated flow ID
 - Funnel state is persisted across page reloads
 - Automatic page view tracking for active funnels
 - Funnel completion triggers immediate event flush

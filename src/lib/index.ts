@@ -24,8 +24,6 @@ export const onbored = {
 
   funnel: (...args: Parameters<OnboredClient['funnel']>) =>
     onbored._get().funnel(...args),
-  flow: (...args: Parameters<OnboredClient['flow']>) =>
-    onbored._get().flow(...args),
   step: (...args: Parameters<OnboredClient['step']>) =>
     onbored._get().step(...args),
   skip: (...args: Parameters<OnboredClient['skip']>) =>
