@@ -393,7 +393,7 @@ describe('Flow Management', () => {
 
       expect(client['eventQueue'].length).toBeGreaterThan(0);
       const event = client['eventQueue'].find(
-        e => e.event_type === 'flow_complete'
+        e => e.event_type === 'flow_completed'
       );
       expect(event).toBeDefined();
       expect(event?.funnel_slug).toBe(TEST_FLOWS.ONBOARDING);

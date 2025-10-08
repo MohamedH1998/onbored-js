@@ -265,7 +265,7 @@ export const TEST_CONFIG = {
 // Test constants
 export const TEST_EVENTS = {
   FLOW_STARTED: 'flow_started',
-  FLOW_COMPLETED: 'flow_complete',
+  FLOW_COMPLETED: 'flow_completed',
   STEP_VIEWED: 'step_viewed',
   STEP_COMPLETED: 'step_completed',
   STEP_ABANDONED: 'step_abandoned',

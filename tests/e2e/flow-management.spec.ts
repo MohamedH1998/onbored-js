@@ -44,7 +44,7 @@ test.describe('Flow Management', () => {
     await helper.completeFlow('signup');
 
     await helper.assertFlowCompleted('signup');
-    await helper.assertEventCaptured('flow_complete');
+    await helper.assertEventCaptured('flow_completed');
   });
 
   test('should handle multiple flows concurrently', async () => {
