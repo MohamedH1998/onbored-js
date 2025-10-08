@@ -28,7 +28,7 @@ test.describe('Flow Management', () => {
     await helper.createFlow('onboarding');
     await helper.completeStep('welcome', 'onboarding');
 
-    await helper.assertEventCaptured('step_complete');
+    await helper.assertEventCaptured('step_completed');
   });
 
   test('should skip a step', async () => {
@@ -69,7 +69,7 @@ test.describe('Flow Management', () => {
 
     const events = await helper.getEvents();
     const stepEvents = events.filter(
-      (e: any) => e.event_type === 'step_complete'
+      (e: any) => e.event_type === 'step_completed'
     );
 
     expect(stepEvents).toHaveLength(3);

@@ -42,7 +42,7 @@ export type EventType =
   | 'step_viewed'
   | 'step_skipped'
   | 'step_abandoned'
-  | 'step_complete';
+  | 'step_completed';
 
 export type EventPayload = {
   id: string;

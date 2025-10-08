@@ -652,7 +652,7 @@ export class OnboredClient implements OnboredClientInterface {
       return;
     }
 
-    this.capture('step_complete', {
+    this.capture('step_completed', {
       step_id: stepName,
       flow_id: context.id,
       funnel_slug: options.slug,
