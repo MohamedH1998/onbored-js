@@ -267,7 +267,7 @@ export const TEST_EVENTS = {
   FLOW_STARTED: 'flow_started',
   FLOW_COMPLETED: 'flow_complete',
   STEP_VIEWED: 'step_viewed',
-  STEP_COMPLETED: 'step_complete',
+  STEP_COMPLETED: 'step_completed',
   STEP_ABANDONED: 'step_abandoned',
   PAGE_VIEWED: 'page_viewed',
 } as const;

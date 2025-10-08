@@ -166,7 +166,7 @@ describe('Flow Management', () => {
       // Check that event was captured
       expect(client['eventQueue'].length).toBeGreaterThan(0);
       const event = client['eventQueue'].find(
-        e => e.event_type === 'step_complete'
+        e => e.event_type === 'step_completed'
       );
       expect(event).toBeDefined();
       expect(event?.step_id).toBe(TEST_STEPS.WELCOME);
@@ -404,7 +404,7 @@ describe('Flow Management', () => {
 
       expect(client['eventQueue'].length).toBeGreaterThan(0);
       const event = client['eventQueue'].find(
-        e => e.event_type === 'step_complete'
+        e => e.event_type === 'step_completed'
       );
       expect(event).toBeDefined();
       expect(event?.step_id).toBe(TEST_STEPS.WELCOME);
@@ -429,7 +429,7 @@ describe('Flow Management', () => {
       });
 
       const event = client['eventQueue'].find(
-        e => e.event_type === 'step_complete'
+        e => e.event_type === 'step_completed'
       );
       expect(event?.metadata).toEqual(expect.objectContaining(metadata));
     });
@@ -438,7 +438,7 @@ describe('Flow Management', () => {
       await client.step(TEST_STEPS.WELCOME, { slug: TEST_FLOWS.ONBOARDING });
 
       const event = client['eventQueue'].find(
-        e => e.event_type === 'step_complete'
+        e => e.event_type === 'step_completed'
       );
       expect(event).toBeDefined();
       if (event) {
