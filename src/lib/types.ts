@@ -38,7 +38,7 @@ export type FlowContext = {
 export type EventType =
   | 'page_viewed'
   | 'flow_started'
-  | 'flow_complete'
+  | 'flow_completed'
   | 'step_viewed'
   | 'step_skipped'
   | 'step_abandoned'

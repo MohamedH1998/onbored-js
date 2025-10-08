@@ -686,7 +686,7 @@ export class OnboredClient implements OnboredClientInterface {
     await this.waitForInit();
     const context = this._getFlowContext(options.slug);
     if (!context) return;
-    this.capture('flow_complete', {
+    this.capture('flow_completed', {
       flow_id: context.id,
       funnel_slug: options.slug,
       metadata: {

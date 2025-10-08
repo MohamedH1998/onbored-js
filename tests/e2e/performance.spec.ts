@@ -82,7 +82,7 @@ test.describe('Performance', () => {
       (e: any) => e.event_type === 'flow_started'
     );
     const flowCompletedEvents = events.filter(
-      (e: any) => e.event_type === 'flow_complete'
+      (e: any) => e.event_type === 'flow_completed'
     );
 
     expect(flowStartedEvents).toHaveLength(5);
