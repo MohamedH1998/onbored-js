@@ -15,8 +15,10 @@ export type Storage = {
 export type Fetch = typeof fetch;
 
 export type OnboredClientOptions = {
+  accountId?: string;
+  accountTraits?: Options;
   userId?: string;
-  userMetadata?: Options;
+  userTraits?: Options;
   debug?: boolean;
   env?: string;
   apiHost?: string;
@@ -42,21 +44,28 @@ export type EventType =
   | 'step_viewed'
   | 'step_skipped'
   | 'step_abandoned'
-  | 'step_completed';
+  | 'step_completed'
+  | 'replay_started'
+  | 'replay_stopped';
 
 export type EventPayload = {
   id: string;
+  project_key: string;
+  session_id: string;
+  user_id?: string;
+  account_id?: string;
   event_type: EventType;
   funnel_slug?: string;
   flow_id?: string;
   step_id?: string;
   metadata?: Options;
-  session_id: string;
-  sessionId?: string; // Backwards compatibility
-  timestamp: string;
-  project_key: string;
+  timestamp: string; // ISO date in UTC
+  timezone: string; // IANA timezone identifier
+  timezone_offset: number; // Minutes from UTC
   url: string;
   referrer?: string | undefined;
+  user_traits?: Options;
+  account_traits?: Options;
 };
 
 export type RetryEvent = {

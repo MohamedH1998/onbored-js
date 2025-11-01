@@ -186,17 +186,17 @@ describe('SDK Initialization', () => {
     });
 
     it('should handle user metadata', () => {
-      const userMetadata = {
+      const userTraits = {
         name: 'Test User',
         email: 'test@example.com',
         plan: 'premium',
       };
 
       const client = new OnboredClient(createMockProjectKey(), {
-        userMetadata: userMetadata,
+        userTraits: userTraits,
       });
 
-      // Note: userMetadata is not directly stored on client, but should be handled
+      // Note: userTraits is not directly stored on client, but should be handled
       expect(client).toBeInstanceOf(OnboredClient);
     });
   });
@@ -243,29 +243,47 @@ describe('SDK Initialization', () => {
 
     it('should reuse existing session when valid', () => {
       const mockStorage = getMockStorage();
+      const projectKey = createMockProjectKey();
       const existingSessionId = 'a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6'; // Valid UUID
-      const recentActivity = Date.now().toString();
+      const recentActivity = Date.now();
+      const sessionStorageKey = `ob-session-${projectKey}`;
+      const activityStorageKey = `ob-activity-${projectKey}`;
 
-      // Properly mock the sequence of getItem calls that _getSessionId makes:
-      // 1. First call: get activity timestamp
-      // 2. Second call: get session ID
-      mockStorage.localStorage.getItem
-        .mockReturnValueOnce(recentActivity) // Activity timestamp
-        .mockReturnValueOnce(existingSessionId); // Existing session ID
+      // _load adds sessionStorageKey prefix and JSON.parse
+      // So we need to mock with double prefix: sessionStorageKey-activityStorageKey
+      mockStorage.localStorage.getItem.mockImplementation((key: string) => {
+        if (key === `${sessionStorageKey}-${activityStorageKey}`) {
+          return JSON.stringify(recentActivity);
+        }
+        if (key === `${sessionStorageKey}-${sessionStorageKey}`) {
+          return JSON.stringify(existingSessionId);
+        }
+        return null;
+      });
 
-      const client = new OnboredClient(createMockProjectKey());
+      const client = new OnboredClient(projectKey);
 
       expect(client['sessionId']).toBe(existingSessionId);
     });
 
     it('should create new session when expired', () => {
       const mockStorage = getMockStorage();
+      const projectKey = createMockProjectKey();
       const expiredTime = Date.now() - 31 * 60 * 1000; // 31 minutes ago
-      mockStorage.localStorage.getItem
-        .mockReturnValueOnce('existing-session-id') // session ID
-        .mockReturnValueOnce(expiredTime.toString()); // activity time
+      const sessionStorageKey = `ob-session-${projectKey}`;
+      const activityStorageKey = `ob-activity-${projectKey}`;
 
-      const client = new OnboredClient(createMockProjectKey());
+      mockStorage.localStorage.getItem.mockImplementation((key: string) => {
+        if (key === `${sessionStorageKey}-${activityStorageKey}`) {
+          return JSON.stringify(expiredTime);
+        }
+        if (key === `${sessionStorageKey}-${sessionStorageKey}`) {
+          return JSON.stringify('existing-session-id');
+        }
+        return null;
+      });
+
+      const client = new OnboredClient(projectKey);
 
       expect(client['sessionId']).not.toBe('existing-session-id');
       expect(mockStorage.localStorage.setItem).toHaveBeenCalled();
@@ -273,11 +291,21 @@ describe('SDK Initialization', () => {
 
     it('should handle invalid session ID', () => {
       const mockStorage = getMockStorage();
-      mockStorage.localStorage.getItem
-        .mockReturnValueOnce(Date.now().toString()) // valid activity time
-        .mockReturnValueOnce('invalid-session-id'); // invalid session ID
+      const projectKey = createMockProjectKey();
+      const sessionStorageKey = `ob-session-${projectKey}`;
+      const activityStorageKey = `ob-activity-${projectKey}`;
 
-      const client = new OnboredClient(createMockProjectKey());
+      mockStorage.localStorage.getItem.mockImplementation((key: string) => {
+        if (key === `${sessionStorageKey}-${activityStorageKey}`) {
+          return JSON.stringify(Date.now());
+        }
+        if (key === `${sessionStorageKey}-${sessionStorageKey}`) {
+          return JSON.stringify('invalid-session-id');
+        }
+        return null;
+      });
+
+      const client = new OnboredClient(projectKey);
 
       expect(client['sessionId']).not.toBe('invalid-session-id');
       expect(mockStorage.localStorage.setItem).toHaveBeenCalled();
@@ -294,12 +322,22 @@ describe('SDK Initialization', () => {
 
     it('should restore flow context from storage', () => {
       const mockStorage = getMockStorage();
+      const projectKey = createMockProjectKey();
       const sessionId = 'a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6';
+      const sessionStorageKey = `ob-session-${projectKey}`;
+      const activityStorageKey = `ob-activity-${projectKey}`;
+      const flowContextStorageKey = `ob-flow-context-${projectKey}`;
 
       // Mock localStorage to return a valid session
-      mockStorage.localStorage.getItem
-        .mockReturnValueOnce(Date.now().toString()) // Activity timestamp
-        .mockReturnValueOnce(sessionId); // Existing session ID
+      mockStorage.localStorage.getItem.mockImplementation((key: string) => {
+        if (key === `${sessionStorageKey}-${activityStorageKey}`) {
+          return JSON.stringify(Date.now());
+        }
+        if (key === `${sessionStorageKey}-${sessionStorageKey}`) {
+          return JSON.stringify(sessionId);
+        }
+        return null;
+      });
 
       const storedContext = {
         sessionId: sessionId, // Must match the session ID the client will use
@@ -311,11 +349,14 @@ describe('SDK Initialization', () => {
         ],
       };
 
-      mockStorage.sessionStorage.getItem.mockReturnValue(
-        JSON.stringify(storedContext)
-      );
+      mockStorage.sessionStorage.getItem.mockImplementation((key: string) => {
+        if (key === flowContextStorageKey) {
+          return JSON.stringify(storedContext);
+        }
+        return null;
+      });
 
-      const client = new OnboredClient(createMockProjectKey());
+      const client = new OnboredClient(projectKey);
 
       expect(client['flowContext'].size).toBe(1);
       expect(client['flowContext'].has('test-flow')).toBe(true);
