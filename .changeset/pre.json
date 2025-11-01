@@ -4,5 +4,7 @@
   "initialVersions": {
     "onbored-js": "0.1.0-alpha.7"
   },
-  "changesets": []
+  "changesets": [
+    "happy-birds-type"
+  ]
 }
