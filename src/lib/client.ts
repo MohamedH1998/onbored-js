@@ -439,8 +439,6 @@ export class OnboredClient implements OnboredClientInterface {
       return;
     }
 
-    console.log('🟣🟢 - - _sendEvents', payload);
-
     try {
       const response = await fetch(this.apiHost + '/ingest/events', {
         method: 'POST',
@@ -470,7 +468,6 @@ export class OnboredClient implements OnboredClientInterface {
     );
   }
   private _flush(isUnload = false) {
-    console.log('🟣🟢 - - _flush', this.eventQueue.length);
     if (!this.eventQueue.length) return;
     if (!navigator.onLine) return; // skip if offline
 

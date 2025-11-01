@@ -237,7 +237,7 @@ export class MockServer {
       req.on('end', () => {
         try {
           resolve(JSON.parse(body));
-        } catch (error) {
+        } catch {
           resolve(body);
         }
       });
@@ -262,8 +262,9 @@ export class MockServer {
    * Check if request is rate limited
    */
   private isRateLimited(req: IncomingMessage): boolean {
+    const forwardedFor = req.headers['x-forwarded-for'];
     const clientId =
-      req.headers['x-forwarded-for'] ||
+      (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor) ||
       req.connection.remoteAddress ||
       'unknown';
     const now = Date.now();

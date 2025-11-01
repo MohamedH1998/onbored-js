@@ -492,7 +492,9 @@ describe('Event Buffer', () => {
 
       let uuidIndex = 0;
       const originalRandomUUID = crypto.randomUUID;
-      crypto.randomUUID = jest.fn(() => uuids[uuidIndex++] || originalRandomUUID()) as () => `${string}-${string}-${string}-${string}-${string}`;
+      crypto.randomUUID = jest.fn(
+        () => uuids[uuidIndex++] || originalRandomUUID()
+      ) as () => `${string}-${string}-${string}-${string}-${string}`;
 
       const client = new OnboredClient(createMockProjectKey(), {
         env: 'development',
