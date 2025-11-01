@@ -2,16 +2,34 @@ import { z } from 'zod';
 
 export const eventPayloadSchema = z.object({
   id: z.string(),
-  event_type: z.string(),
+  event_type: z.enum([
+    'page_viewed',
+    'flow_started',
+    'flow_completed',
+    'step_viewed',
+    'step_skipped',
+    'step_abandoned',
+    'step_completed',
+    'replay_started',
+    'replay_stopped',
+  ]),
   flow_id: z.string().optional(),
   slug: z.string().optional(),
   step_id: z.string().optional(),
+  funnel_slug: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
   options: z.record(z.any()).default({}),
   result: z.string().optional(),
   traits: z.record(z.any()).optional(),
   session_id: z.string().uuid(),
-  timestamp: z.string(), // ISO date
+  timestamp: z.string(), // ISO date in UTC
+  timezone: z.string(),
+  timezone_offset: z.number(),
   project_key: z.string(),
   url: z.string().url(),
   referrer: z.string().url().optional(),
+  user_id: z.string().optional(),
+  account_id: z.string().optional(),
+  user_traits: z.record(z.any()).optional(),
+  account_traits: z.record(z.any()).optional(),
 });

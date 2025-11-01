@@ -32,6 +32,7 @@ describe('Flow Management', () => {
     client = new OnboredClient(createMockProjectKey(), {
       env: 'development',
       debug: true,
+      accountId: 'test-account-id', // Add accountId so events go to queue instead of buffer
     });
   });
 
@@ -232,6 +233,7 @@ describe('Flow Management', () => {
       const newClient = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
+        accountId: 'test-account-id', // Add accountId so events don't get buffered
       });
 
       // Verify no flows exist
@@ -372,10 +374,11 @@ describe('Flow Management', () => {
       // Clear session storage to ensure clean state
       sessionStorage.clear();
 
-      // Create a fresh client without any prior setup
+      // Create a fresh client with accountId so funnel is not buffered
       const newClient = new OnboredClient(createMockProjectKey(), {
         env: 'development',
         debug: true,
+        accountId: 'test-account-id',
       });
 
       await newClient.funnel(TEST_FLOWS.ONBOARDING);

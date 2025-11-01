@@ -32,6 +32,10 @@ export const onbored = {
     onbored._get().complete(...args),
   capture: (...args: Parameters<OnboredClient['capture']>) =>
     onbored._get().capture(...args),
+  identify: (...args: Parameters<OnboredClient['identify']>) =>
+    onbored._get().identify(...args),
+  identifyAccount: (...args: Parameters<OnboredClient['identifyAccount']>) =>
+    onbored._get().identifyAccount(...args),
   reset: () => onbored._get().reset(),
   destroy: () => onbored._get().destroy(),
 
@@ -41,4 +45,6 @@ export const onbored = {
   _getRecorder: () => onbored._get()._getRecorder(),
   _getRecorderEvents: () => onbored._get()._getRecorderEvents(),
   _getSessionId: () => onbored._get()._getSessionId(),
+  _getAccountId: () => onbored._get()._getAccountId(),
+  _getUserId: () => onbored._get()._getUserId(),
 };

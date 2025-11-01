@@ -1,8 +1,10 @@
-import { recordOptions } from 'rrweb/typings/types';
-import { eventWithTime, EventType, IncrementalSource } from '@rrweb/types';
 import pako from 'pako';
-import { SessionReplayOptions } from './types';
+import { eventWithTime, EventType, IncrementalSource } from '@rrweb/types';
+import { recordOptions } from 'rrweb/typings/types';
+
 import { Logger } from '../logger';
+
+import { SessionReplayClientOptions } from './types';
 
 declare global {
   interface Window {
@@ -12,8 +14,33 @@ declare global {
   }
 }
 
-const MAX_BYTES_PER_PAYLOAD = 900_000;
-const IDLE_TIMEOUT = 5 * 60 * 1000;
+const MAX_BYTES_PER_PAYLOAD = 900_000; // ~900KB (keep below 1MB)
+const MAX_EVENTS_PER_PAYLOAD = 100; // Max number of events before flush
+const MAX_TIME_BEFORE_FLUSH = 10_000; // 10 seconds
+const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+const DEFAULT_MASK_INPUT_OPTIONS = {
+  password: true,
+  email: true,
+  tel: true,
+  number: false,
+  text: false,
+  textarea: false,
+  search: false,
+  url: false,
+  date: false,
+  color: false,
+};
+
+const DEFAULT_PRIVATE_SELECTORS = [
+  '[data-private]',
+  '[data-sensitive]',
+  '.private',
+  '.sensitive',
+  '.password',
+  '.ssn',
+  '.credit-card',
+];
 
 export class SessionReplayClient {
   private events: eventWithTime[] = [];
@@ -22,39 +49,52 @@ export class SessionReplayClient {
   private isRecording = false;
   private isIdle = false;
   private lastActivity = Date.now();
+  private lastFlushTime = Date.now();
   private hasSeenFullSnapshot = false;
   private logger: Logger;
 
-  private options: Required<SessionReplayOptions> & {
-    uploadUrl: string;
-    sessionId: string;
-    debug: boolean;
-  };
+  private options: SessionReplayClientOptions;
+  private onReplayEvent?: (
+    eventType: 'replay_started' | 'replay_stopped',
+    data: {
+      sessionId: string;
+      accountId?: string;
+      userId?: string;
+      timestamp: string;
+    }
+  ) => void;
 
   constructor(
     private projectKey: string,
-    options: SessionReplayOptions & { sessionId: string; debug: boolean }
+    options: SessionReplayClientOptions
   ) {
     this.logger = new Logger(
       '[Session Recorder]',
       options.debug ? 'debug' : 'info'
     );
 
-    const uploadUrl = `${options.apiHost.replace(
-      /\/$/,
-      ''
-    )}/ingest/session-replay`;
-
     this.options = {
       apiHost: options.apiHost,
       flushInterval: options.flushInterval ?? 10_000,
       maskInputs: options.maskInputs ?? true,
+      maskInputOptions: {
+        ...DEFAULT_MASK_INPUT_OPTIONS,
+        ...(options.maskInputOptions || {}),
+      },
       blockElements: options.blockElements ?? [],
+      privateSelectors: [
+        ...DEFAULT_PRIVATE_SELECTORS,
+        ...(options.privateSelectors || []),
+      ],
       onError: options.onError ?? ((err: Error) => console.error(err)),
-      uploadUrl,
+      uploadUrl: options.uploadUrl,
       sessionId: options.sessionId,
       debug: options.debug,
+      ...(options.accountId && { accountId: options.accountId }),
+      ...(options.userId && { userId: options.userId }),
     };
+
+    this.onReplayEvent = options.onReplayEvent ?? (() => {});
   }
 
   public async start(): Promise<void> {
@@ -64,9 +104,15 @@ export class SessionReplayClient {
     }
 
     const rrweb = await import('rrweb');
+
     this.isRecording = true;
     this.lastActivity = Date.now();
     this.hasSeenFullSnapshot = false;
+
+    const blockSelectors = [
+      ...(this.options.blockElements || []),
+      ...(this.options.privateSelectors || []),
+    ].join(',');
 
     const recordOptions: recordOptions<eventWithTime> = {
       emit: event => {
@@ -76,19 +122,16 @@ export class SessionReplayClient {
 
         if (event.type === EventType.FullSnapshot) {
           this.hasSeenFullSnapshot = true;
-          this._uploadEvents(); // flush immediately once we get it
+          this._uploadEvents();
         }
 
         this.logger.debug('Event captured');
       },
-      blockSelector: this.options.blockElements?.join(',') || '',
+      ...(blockSelectors && { blockSelector: blockSelectors }),
       maskAllInputs: this.options.maskInputs ?? true,
-      maskInputOptions: {
-        password: true,
-        email: true,
-        tel: true,
-        number: true,
-        text: true,
+      maskInputOptions: this.options.maskInputOptions ?? {
+        ...DEFAULT_MASK_INPUT_OPTIONS,
+        ...(this.options.maskInputOptions || {}),
       },
       recordCanvas: false,
       sampling: {
@@ -108,6 +151,14 @@ export class SessionReplayClient {
 
     this._startUploadTimer();
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
+
+    this.onReplayEvent?.('replay_started', {
+      sessionId: this.options.sessionId,
+      ...(this.options.accountId && { accountId: this.options.accountId }),
+      ...(this.options.userId && { userId: this.options.userId }),
+      timestamp: new Date().toISOString(),
+    });
+    this.logger.debug('Emitted replay_started event');
   }
 
   private handleVisibilityChange = () => {
@@ -136,6 +187,14 @@ export class SessionReplayClient {
     }
 
     this._uploadEvents(); // Final flush
+
+    this.onReplayEvent?.('replay_stopped', {
+      sessionId: this.options.sessionId,
+      ...(this.options.accountId && { accountId: this.options.accountId }),
+      ...(this.options.userId && { userId: this.options.userId }),
+      timestamp: new Date().toISOString(),
+    });
+    this.logger.debug('Emitted replay_stopped event');
   }
 
   public clearEvents(): void {
@@ -165,9 +224,29 @@ export class SessionReplayClient {
   }
 
   private _maybeFlushSnapshot(): void {
+    const now = Date.now();
+    const timeSinceLastFlush = now - this.lastFlushTime;
+    const eventCount = this.events.length;
     const payloadSize = new Blob([JSON.stringify(this.events)]).size;
-    if (payloadSize > MAX_BYTES_PER_PAYLOAD) {
-      this.logger.debug('Payload exceeded max size, flushing...');
+
+    const shouldFlushBySize = payloadSize > MAX_BYTES_PER_PAYLOAD;
+    const shouldFlushByCount = eventCount >= MAX_EVENTS_PER_PAYLOAD;
+    const shouldFlushByTime = timeSinceLastFlush >= MAX_TIME_BEFORE_FLUSH;
+
+    if (shouldFlushBySize) {
+      this.logger.debug(
+        `Payload exceeded max size (${payloadSize} bytes), flushing...`
+      );
+      this._uploadEvents();
+    } else if (shouldFlushByCount) {
+      this.logger.debug(
+        `Event count exceeded max (${eventCount} events), flushing...`
+      );
+      this._uploadEvents();
+    } else if (shouldFlushByTime) {
+      this.logger.debug(
+        `Time exceeded max (${timeSinceLastFlush}ms), flushing...`
+      );
       this._uploadEvents();
     }
   }
@@ -211,6 +290,7 @@ export class SessionReplayClient {
 
     const eventsToUpload = [...this.events];
     this.events = [];
+    this.lastFlushTime = Date.now();
 
     const lines = eventsToUpload.map(e =>
       JSON.stringify({
@@ -234,6 +314,10 @@ export class SessionReplayClient {
         },
         body: compressed,
       });
+
+      this.logger.debug(
+        `Uploaded ${eventsToUpload.length} events (${compressed.length} bytes compressed)`
+      );
     } catch (error) {
       this.options.onError?.(error as Error);
       this.events.unshift(...eventsToUpload); // Retry on failure

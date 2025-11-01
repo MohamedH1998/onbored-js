@@ -1,9 +1,9 @@
 import { SessionReplayClient } from './client';
-import { SessionReplayOptions } from './types';
+import { SessionReplayClientOptions } from './types';
 
 export async function createSessionReplay(
   projectKey: string,
-  options: SessionReplayOptions & { sessionId: string; debug: boolean }
+  options: SessionReplayClientOptions
 ): Promise<SessionReplayClient> {
   const recorder = new SessionReplayClient(projectKey, options);
   await recorder.start();

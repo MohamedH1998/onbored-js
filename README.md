@@ -1,58 +1,31 @@
 # Onbored JS SDK
 
-> The onboarding analytics platform that prevents churn in the first 2 weeks—before it's too late
+> Stop churn in the first 2 weeks. Funnel tracking + session replay for onboarding flows.
 
 [![npm version](https://img.shields.io/npm/v/onbored-js.svg)](https://www.npmjs.com/package/onbored-js)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Onbored is a retention OS designed to solve the most critical problem in SaaS: user churn - specifically, we focus on the first 2 weeks after a user signs up, a period that determines whether a user will tick around or drop off.
-
-## ✨ Features
-
-- **Funnel Tracking** - Track complete user conversion journeys with funnel start, steps, skips, and completions
-- **Session Replay** - Record and replay user sessions to see exactly what happened
-- **Automatic Page Views** - Automatically capture navigation and page view events
-- **Offline Support** - Queue events with retry logic and exponential backoff
-- **React Integration** - First-class React support with hooks and context providers
-- **Type Safety** - Full TypeScript support with comprehensive types
-- **Development Mode** - Test locally without sending events to production
-- **Singleton Design** - Simple initialization with a single global instance (multi-instance coming soon)
-- **Lightweight** - Small bundle size with minimal dependencies
+**Account-first analytics**. Buffer events pre-auth, flush on identify. Session replay with privacy controls. Built for B2B SaaS.
 
 ---
 
-## 🚀 Quick Start (5 minutes)
-
-### 1. Create your account
-
-Sign up at **[onbored.io](https://onbored.io)** and create a new project to get your API key.
-
-### 2. Install the SDK
+## Install
 
 ```bash
-npm install onbored-js
-# or
-yarn add onbored-js
-# or
-pnpm add onbored-js
+npm i onbored-js
 ```
 
-### 3. Initialize and start tracking
+---
 
-**Vanilla JavaScript**
+## Quick Start
+
+**Vanilla JS**
 
 ```typescript
 import { onbored } from 'onbored-js';
 
-// Initialize with your project key
-onbored.init({
-  projectKey: 'pk_live_1234567890abcdef', // Get this from onbored.io
-  userId: 'user_123',
-  userMetadata: { plan: 'premium' },
-  debug: true,
-});
-
-// Track your first funnel
+onbored.init({ projectKey: 'pk_live_...' });
+onbored.identifyAccount('acct_123', { plan: 'enterprise' });
 onbored.funnel('onboarding');
 onbored.step('profile-setup', { slug: 'onboarding' });
 onbored.complete({ slug: 'onboarding' });
@@ -65,250 +38,135 @@ import { OnboredProvider, useFunnel } from 'onbored-js/react';
 
 function App() {
   return (
-    <OnboredProvider
-      config={{
-        projectKey: 'pk_live_1234567890abcdef',
-        userId: 'user_123',
-        debug: true,
-      }}
-    >
+    <OnboredProvider config={{ projectKey: 'pk_live_...', accountId: 'acct_123' }}>
       <OnboardingFlow />
     </OnboredProvider>
   );
 }
 
 function OnboardingFlow() {
-  const { step, skip, complete } = useFunnel('onboarding');
-
+  const { step, complete } = useFunnel('onboarding');
   return (
-    <div>
-      <button onClick={() => step('profile-setup')}>Complete Profile</button>
-      <button onClick={() => skip('team-invite')}>Skip Team Invite</button>
-      <button onClick={() => complete()}>Finish Onboarding</button>
-    </div>
-  );
+    <button onClick={() => step('setup').then(complete)}>
+      Done
+    </button>
+    );
 }
 ```
 
-That's it! 🎉 Head to your [Onbored dashboard](https://onbored.io) to see your events in real-time.
+Events appear at [onbored.io](https://app.onbored.io) instantly.
 
 ---
 
-## 📚 Core Concepts
+## Core Concepts
 
-### Funnels
+**Account-First Architecture**
+Events buffer until `identifyAccount()` called. Required for B2B multi-tenant tracking.
 
-A **funnel** represents a complete user conversion journey (e.g., onboarding, checkout, feature tour). Each funnel has a unique slug identifier and tracks the user's progress through multiple steps.
-
-```typescript
-// Start a new funnel
-onbored.funnel('onboarding');
-```
-
-### Steps
-
-**Steps** are individual actions or milestones within a funnel. Track when users complete important actions.
+**Funnels**
+Conversion journeys (e.g., onboarding, checkout). Each gets UUID flow ID.
 
 ```typescript
-// Track a completed step
-onbored.step('profile-setup', {
-  slug: 'onboarding',
-  method: 'email',
-  duration: 120,
-});
+onbored.funnel('signup', { source: 'landing' }); // Returns flow ID
 ```
 
-### Skips
-
-When users skip optional steps, track them with **skip** to understand which parts of your funnel are being bypassed.
+**Steps**
+Milestones within funnels. Track completions or skips.
 
 ```typescript
-// Track a skipped step
-onbored.skip('team-invite', {
-  slug: 'onboarding',
-  reason: 'no team yet',
-});
+onbored.step('email-verified', { slug: 'signup', method: 'magic-link' });
+onbored.skip('team-setup', { slug: 'signup', reason: 'solo' });
 ```
 
-### Completions
-
-Mark a funnel as complete when the user finishes the entire journey.
-
-```typescript
-// Complete a funnel
-onbored.complete({
-  slug: 'onboarding',
-  totalSteps: 5,
-  duration: 600,
-});
-```
-
-### Sessions
-
-Sessions are automatically managed with a 30-minute inactivity timeout. Each session is uniquely identified and persisted in localStorage.
+**Sessions**
+Auto-managed. 30min timeout. Persists in localStorage. Rotates on account switch.
 
 ---
 
-## 🎯 API Reference
+## API
 
 ### `onbored.init(config)`
 
-Initialize the Onbored SDK. Must be called before any other methods.
+Initialize SDK. Call before other methods.
 
-**Parameters:**
+| Option | Type | Description | Required |
+|--------|------|-------------|----------|
+| `projectKey` | `string` | Project key | ✓ |
+| `accountId` | `string` | Account identifier | |
+| `accountTraits` | `object` | Account metadata | |
+| `userId` | `string` | User identifier | |
+| `userTraits` | `object` | User metadata | |
+| `debug` | `boolean` | Console logging | |
+| `env` | `string` | Skip API calls | |
+| `sessionReplay` | `object` | See Session Replay section | |
 
-| Parameter        | Type                            | Required | Description                                            |
-| ---------------- | ------------------------------- | -------- | ------------------------------------------------------ |
-| `projectKey`     | `string`                        | ✅       | Your project key from [onbored.io](https://onbored.io) |
-| `userId`         | `string`                        | ❌       | Unique identifier for the user                         |
-| `userMetadata`   | `object`                        | ❌       | Additional user properties (plan, role, etc.)          |
-| `debug`          | `boolean`                       | ❌       | Enable debug logging (default: `false`)                |
-| `env`            | `'development' \| 'production'` | ❌       | Environment mode (default: `'production'`)             |
-| `apiHost`        | `string`                        | ❌       | Custom API host (default: `'https://api.onbored.com'`) |
-| `storage`        | `Storage`                       | ❌       | Custom storage keys                                    |
-| `global`         | `GlobalOptions`                 | ❌       | Custom fetch and headers                               |
-| `sessionReplay`  | `SessionReplayOptions \| false` | ❌       | Session replay configuration                           |
+### `onbored.identifyAccount(accountId, traits?)`
 
-**Example:**
+Identify account. Flushes buffered events. Rotates session on change.
 
 ```typescript
-onbored.init({
-  projectKey: 'pk_live_1234567890abcdef',
-  userId: 'user_123',
-  userMetadata: {
-    plan: 'premium',
-    role: 'admin',
-    companySize: '11-50',
-  },
-  debug: true,
-  env: 'production',
-});
+onbored.identifyAccount('acct_789', { plan: 'enterprise', seats: 50 });
 ```
 
----
+### `onbored.identify(userId, traits?)`
+
+Identify user. Optional. Merges traits.
+
+```typescript
+onbored.identify('user_101', { email: 'user@co.com', role: 'admin' });
+```
 
 ### `onbored.funnel(slug, metadata?)`
 
-Start tracking a new funnel. Creates a unique flow instance ID.
-
-**Parameters:**
-
-- `slug` (string): Unique identifier for the funnel
-- `metadata` (object, optional): Additional funnel context
-
-**Example:**
+Start funnel. Returns flow ID (UUID).
 
 ```typescript
-onbored.funnel('checkout', {
-  cartValue: 299.99,
-  items: 3,
-});
+onbored.funnel('signup', { source: 'google' });
 ```
-
----
 
 ### `onbored.step(stepName, options)`
 
-Track completion of a step within a funnel.
-
-**Parameters:**
-
-- `stepName` (string): Name of the step
-- `options.slug` (string): Funnel slug this step belongs to
-- `options.*` (any): Additional step metadata
-
-**Example:**
+Track step completion.
 
 ```typescript
-onbored.step('payment-method', {
-  slug: 'checkout',
-  method: 'credit_card',
-  provider: 'stripe',
-});
+onbored.step('email-verified', { slug: 'signup', method: 'link' });
 ```
-
----
 
 ### `onbored.skip(stepName, options)`
 
-Track when a user skips an optional step.
-
-**Parameters:**
-
-- `stepName` (string): Name of the skipped step
-- `options.slug` (string): Funnel slug this step belongs to
-- `options.*` (any): Additional context (e.g., reason)
-
-**Example:**
+Track step skip.
 
 ```typescript
-onbored.skip('add-team-members', {
-  slug: 'onboarding',
-  reason: 'solo_user',
-});
+onbored.skip('team-invite', { slug: 'signup', reason: 'solo' });
 ```
-
----
 
 ### `onbored.complete(options)`
 
-Mark a funnel as complete.
-
-**Parameters:**
-
-- `options.slug` (string): Funnel slug to complete
-- `options.*` (any): Additional completion metadata
-
-**Example:**
+Complete funnel. Flushes immediately.
 
 ```typescript
-onbored.complete({
-  slug: 'onboarding',
-  totalSteps: 5,
-  duration: 420,
-  success: true,
-});
+onbored.complete({ slug: 'signup', duration: 420 });
 ```
-
----
 
 ### `onbored.capture(eventType, data)`
 
-Manually capture custom events.
-
-**Parameters:**
-
-- `eventType` (EventType): Type of event
-- `data` (object): Event payload
-
-**Example:**
+Custom events.
 
 ```typescript
-onbored.capture('page_viewed', {
-  url: window.location.href,
-  title: document.title,
-});
+onbored.capture('feature_used', { feature: 'export', format: 'csv' });
 ```
-
----
 
 ### `onbored.reset()`
 
-Reset the session and clear all user context. Useful for logout scenarios.
-
-**Example:**
+Logout. Clears session + stops replay.
 
 ```typescript
 onbored.reset();
 ```
 
----
-
 ### `onbored.destroy()`
 
-Clean up all resources, event listeners, and timers. Call this when unmounting your app.
-
-**Example:**
+Cleanup. Removes listeners.
 
 ```typescript
 onbored.destroy();
@@ -316,565 +174,269 @@ onbored.destroy();
 
 ---
 
-## ⚛️ React Integration
+## React
 
 ### `<OnboredProvider>`
 
-Wrap your app with the provider to automatically initialize the SDK.
-
-> **⚠️ Important:** `OnboredProvider` uses browser APIs and must run on the client side. In Next.js App Router or similar SSR frameworks, create a separate client component for the provider.
-
-**Props:**
-
-| Prop       | Type                   | Required | Description       |
-| ---------- | ---------------------- | -------- | ----------------- |
-| `config`   | `OnboredClientOptions` | ✅       | SDK configuration |
-| `children` | `ReactNode`            | ✅       | Child components  |
-
-**Example (Client-side React):**
+Initializes SDK. Client-side only (use `'use client'` in Next.js App Router).
 
 ```tsx
 import { OnboredProvider } from 'onbored-js/react';
 
-function App() {
-  return (
-    <OnboredProvider
-      config={{
-        projectKey: 'pk_live_1234567890abcdef',
-        userId: 'user_123',
-        userMetadata: { plan: 'premium' },
-        debug: true,
-      }}
-    >
-      <YourApp />
-    </OnboredProvider>
-  );
-}
+<OnboredProvider config={{ projectKey: 'pk_live_...', accountId: 'acct_123' }}>
+  <App />
+</OnboredProvider>
 ```
 
-**Example (Next.js App Router):**
+**Next.js App Router**
 
 ```tsx
 // app/providers.tsx
 'use client';
-
 import { OnboredProvider } from 'onbored-js/react';
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }) {
   return (
-    <OnboredProvider
-      config={{
-        projectKey: 'pk_live_1234567890abcdef',
-        userId: 'user_123',
-        userMetadata: { plan: 'premium' },
-        debug: true,
-      }}
-    >
+    <OnboredProvider config={{ projectKey: 'pk_...', accountId: 'acct_...' }}>
       {children}
     </OnboredProvider>
   );
 }
-```
 
-```tsx
 // app/layout.tsx
 import { Providers } from './providers';
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>
-        <Providers>{children}</Providers>
-      </body>
-    </html>
-  );
+export default function RootLayout({ children }) {
+  return <html><body><Providers>{children}</Providers></body></html>;
 }
 ```
 
----
-
 ### `useFunnel(slug)`
 
-Hook for managing funnels within React components. Automatically starts the funnel on mount.
-
-**Parameters:**
-
-- `slug` (string): Funnel identifier
-
-**Returns:**
-
-- `step(stepName, options?)` - Track a completed step
-- `skip(stepName, options?)` - Track a skipped step
-- `complete(options?)` - Mark funnel as complete
-
-**Example:**
+Auto-starts funnel on mount. Returns `{ step, skip, complete }`.
 
 ```tsx
 import { useFunnel } from 'onbored-js/react';
 
-function OnboardingWizard() {
-  const { step, skip, complete } = useFunnel('onboarding');
-
-  const handleProfileComplete = () => {
-    step('profile-setup', { method: 'email' });
-  };
-
-  const handleSkipTeamInvite = () => {
-    skip('team-invite', { reason: 'solo_user' });
-  };
-
-  const handleFinish = () => {
-    complete({ totalSteps: 5 });
-  };
-
-  return (
-    <div>
-      <button onClick={handleProfileComplete}>Complete Profile</button>
-      <button onClick={handleSkipTeamInvite}>Skip Team Invite</button>
-      <button onClick={handleFinish}>Finish</button>
-    </div>
-  );
+function Wizard() {
+  const { step, complete } = useFunnel('onboarding');
+  return <button onClick={() => step('done').then(complete)}>Finish</button>;
 }
 ```
 
 ---
 
-## 🎥 Session Replay
+## Session Replay
 
-Record and replay user sessions to see exactly what users experienced.
+Record user sessions. GDPR-friendly. Gzip compression. Auto-pause on idle.
 
-### Enable Session Replay
+### Enable
 
 ```typescript
 onbored.init({
-  projectKey: 'pk_live_1234567890abcdef',
+  projectKey: 'pk_...',
   sessionReplay: {
     apiHost: 'https://api.onbored.com',
-    flushInterval: 10000, // Flush every 10 seconds
-    maskInputs: true, // Mask sensitive input fields
-    blockElements: ['.sensitive-data'], // CSS selectors to block
-    onError: err => console.error('Replay error:', err),
+    flushInterval: 10000,              // Default: 10s
+    maskInputs: true,                  // Default: true
+    maskInputOptions: {
+      password: true,                  // Always masked
+      email: true,                     // Always masked
+      tel: true,                       // Always masked
+      text: false,                     // Configurable
+    },
+    blockElements: ['.cc-form'],       // CSS selectors
+    privateSelectors: ['[data-ssn]'],  // Additional privacy
   },
 });
 ```
 
-### Session Replay Options
+### Privacy Defaults
 
-| Option          | Type       | Default  | Description                             |
-| --------------- | ---------- | -------- | --------------------------------------- |
-| `apiHost`       | `string`   | Required | API endpoint for replay data            |
-| `flushInterval` | `number`   | `10000`  | How often to flush events (ms)          |
-| `maskInputs`    | `boolean`  | `true`   | Automatically mask input fields         |
-| `blockElements` | `string[]` | `[]`     | CSS selectors to exclude from recording |
-| `onError`       | `function` | -        | Error handler callback                  |
+**Auto-masked inputs:** `password`, `email`, `tel`
+**Auto-blocked elements:** `[data-private]`, `[data-sensitive]`, `.private`, `.sensitive`, `.ssn`, `.credit-card`
+
+### Flush Triggers
+
+- Size: >900KB
+- Event count: >100
+- Time: Every 10s (configurable)
+- Page hidden
+- Session stop
+
+### Account Rotation
+
+On `identifyAccount()` call:
+1. Stop current recording
+2. Rotate session
+3. Restart with new account context
+4. Emit `replay_stopped` + `replay_started`
 
 ---
 
-## 🔧 Advanced Configuration
+## Advanced
 
-### Custom Storage Keys
-
-Customize the localStorage and sessionStorage keys used by the SDK.
+### Custom Storage
 
 ```typescript
 onbored.init({
-  projectKey: 'pk_live_1234567890abcdef',
+  projectKey: 'pk_...',
   storage: {
-    sessionStorageKey: 'my-app-session',
-    activityStorageKey: 'my-app-activity',
-    flowContextStorageKey: 'my-app-funnel-context',
+    sessionStorageKey: 'custom-session',
+    activityStorageKey: 'custom-activity',
+    flowContextStorageKey: 'custom-flow',
   },
 });
 ```
-
----
 
 ### Custom Headers
 
-Add custom headers to all API requests.
-
 ```typescript
 onbored.init({
-  projectKey: 'pk_live_1234567890abcdef',
-  global: {
-    headers: {
-      Authorization: 'Bearer token',
-      'X-Custom-Header': 'value',
-    },
-  },
+  projectKey: 'pk_...',
+  global: { headers: { Authorization: 'Bearer token' } },
 });
 ```
 
----
+### Development Mode
 
-## 🛠️ Development Mode
-
-Run the SDK locally without sending events to production.
+No API calls. Console logging. Manual flush via `window.__onboredFlush()`.
 
 ```typescript
-onbored.init({
-  projectKey: 'pk_live_1234567890abcdef',
-  env: 'development',
-  debug: true,
-});
-
-// Events are logged to console but not sent to server
-onbored.funnel('test-flow');
-// Console: "Mock funnel started: test-flow"
+onbored.init({ projectKey: 'pk_...', env: 'development', debug: true });
 ```
 
-**Debug Helper:**
+### TypeScript
 
-```javascript
-// Manually flush events in development mode
-window.__onboredFlush();
-```
-
----
-
-## 📝 TypeScript Support
-
-The SDK is written in TypeScript and includes comprehensive type definitions.
+Full type definitions included.
 
 ```typescript
-import { onbored } from 'onbored-js';
-import type { OnboredClientOptions } from 'onbored-js/react';
-
-// All methods are fully typed
-onbored.step('profile-setup', {
-  slug: 'onboarding',
-  // TypeScript will validate these properties
-  method: 'email',
-  duration: 120,
-});
+import type { OnboredClientOptions, EventPayload } from 'onbored-js';
 ```
 
 ---
 
-## 💡 Complete Examples
+## Examples
 
-### SaaS Onboarding with React
+### B2B SaaS Onboarding
 
 ```tsx
 import { OnboredProvider, useFunnel } from 'onbored-js/react';
 
-function App() {
+<OnboredProvider config={{
+  projectKey: 'pk_...',
+  accountId: org.id,
+  accountTraits: { plan: org.plan, seats: org.seats },
+  userId: user.id,
+  sessionReplay: { apiHost: 'https://api.onbored.com' },
+}}>
+  <Wizard />
+</OnboredProvider>
+
+function Wizard() {
+  const { step, skip, complete } = useFunnel('setup');
   return (
-    <OnboredProvider
-      config={{
-        projectKey: 'pk_live_1234567890abcdef',
-        userId: currentUser.id,
-        userMetadata: {
-          plan: currentUser.plan,
-          role: currentUser.role,
-          companySize: currentUser.company.size,
-        },
-        debug: process.env.NODE_ENV === 'development',
-      }}
-    >
-      <OnboardingWizard />
-    </OnboredProvider>
-  );
-}
-
-function OnboardingWizard() {
-  const { step, skip, complete } = useFunnel('onboarding');
-  const [currentStep, setCurrentStep] = useState(1);
-
-  const handleNext = (stepName: string, metadata?: any) => {
-    step(stepName, metadata);
-    setCurrentStep(prev => prev + 1);
-  };
-
-  const handleSkip = (stepName: string, reason: string) => {
-    skip(stepName, { reason });
-    setCurrentStep(prev => prev + 1);
-  };
-
-  const handleFinish = () => {
-    complete({
-      totalSteps: 5,
-      completionRate: 0.8,
-      duration: 420,
-    });
-  };
-
-  return (
-    <div>
-      {currentStep === 1 && (
-        <ProfileSetup onComplete={() => handleNext('profile-setup')} />
-      )}
-      {currentStep === 2 && (
-        <TeamInvite
-          onComplete={() => handleNext('team-invite')}
-          onSkip={() => handleSkip('team-invite', 'solo_user')}
-        />
-      )}
-      {currentStep === 3 && (
-        <IntegrationSetup
-          onComplete={provider => handleNext('integration', { provider })}
-        />
-      )}
-      {currentStep === 4 && (
-        <BillingSetup onComplete={() => handleNext('billing')} />
-      )}
-      {currentStep === 5 && <FinalStep onComplete={handleFinish} />}
-    </div>
+    <>
+      <button onClick={() => step('profile')}>Profile</button>
+      <button onClick={() => skip('team', { reason: 'solo' })}>Skip Team</button>
+      <button onClick={() => complete()}>Done</button>
+    </>
   );
 }
 ```
 
----
-
-### E-commerce Checkout Flow
+### Pre-Auth Flow
 
 ```typescript
-// Initialize SDK
-onbored.init({
-  projectKey: 'pk_live_1234567890abcdef',
-  userId: user.id,
-  userMetadata: {
-    plan: user.plan,
-    lifetimeValue: user.ltv,
-  },
-});
+// Before user authenticates
+onbored.init({ projectKey: 'pk_...' });
+onbored.funnel('signup');                    // Buffered
+onbored.step('email-entered', { slug: 'signup' }); // Buffered
 
-// Start checkout funnel
-onbored.funnel('checkout', {
-  cartValue: 299.99,
-  items: 3,
-});
-
-// Track steps
-onbored.step('cart-review', { slug: 'checkout' });
-onbored.step('shipping-info', {
-  slug: 'checkout',
-  country: 'US',
-  method: 'express',
-});
-onbored.step('payment-method', {
-  slug: 'checkout',
-  method: 'credit_card',
-});
-
-// Complete checkout
-onbored.complete({
-  slug: 'checkout',
-  orderId: 'ord_123',
-  revenue: 299.99,
-});
+// After auth
+onbored.identifyAccount('acct_123');         // Flushes buffered events
+onbored.step('verified', { slug: 'signup' });
+onbored.complete({ slug: 'signup' });
 ```
 
----
-
-### Automatic Step View Tracking
-
-Track when users view specific steps without manual instrumentation using data attributes.
+### Auto-Tracking
 
 ```html
-<div data-onbored-step="welcome-screen" data-onbored-funnel="onboarding">
-  Welcome to our app!
-</div>
-
-<div data-onbored-step="profile-setup" data-onbored-funnel="onboarding">
-  Complete your profile
+<div data-onbored-step="welcome" data-onbored-funnel="onboarding">
+  Welcome! (tracked via IntersectionObserver at 50% visibility)
 </div>
 ```
 
-The SDK automatically tracks when these elements become visible using Intersection Observer.
+---
+
+## Architecture
+
+**Queue Strategy**
+- In-memory queue: 5s flush or 100 events
+- Retry: Exponential backoff, max 5 attempts
+- Unload: `sendBeacon()` fallback
+- Complete: Immediate flush
+
+**Session Management**
+- 30min timeout
+- UUID-based, localStorage
+- Auto-rotation on account switch
+- Page navigation tracked (SPA support)
+
+**Funnel Context**
+- UUID flow ID per funnel
+- sessionStorage persistence
+- Auto page view tracking
+- IntersectionObserver for step views (50% threshold)
 
 ---
 
-## 🔍 How It Works
+## Troubleshooting
 
-### Architecture
+**Events not appearing**
+- Check `env: 'production'` (dev mode skips API)
+- Verify `projectKey` at [onbored.io](https://onbored.io)
+- Enable `debug: true`, check console
+- Network tab: Look for `/ingest/events`
 
-```
-┌─────────────────┐
-│   Your App      │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Onbored SDK    │◄─── Session Management
-│                 │◄─── Event Queue & Retry
-│                 │◄─── Funnel Context
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  API Endpoints  │
-│                 │
-│ /ingest/session │─── Register sessions
-│ /ingest/flow    │─── Register funnels
-│ /ingest/events  │─── Batch event ingestion
-└─────────────────┘
-```
+**React hook errors**
+- Ensure `<OnboredProvider>` wraps components
+- Use `'use client'` in Next.js App Router
 
-### Event Queue & Retry Logic
+**Session not persisting**
+- Check localStorage availability
+- Incognito mode may block storage
 
-- Events are queued in memory and flushed every 5 seconds
-- Failed requests retry with exponential backoff (up to 5 attempts)
-- Events are sent via `sendBeacon` on page unload
-- Funnel completion events are flushed immediately
-
-### Session Management
-
-- Sessions expire after 30 minutes of inactivity
-- Session IDs are stored in localStorage
-- Funnel contexts are stored in sessionStorage
-- Automatic session regeneration on expiration
-
-### Funnel Context
-
-- Each funnel instance gets a unique client-generated flow ID
-- Funnel state is persisted across page reloads
-- Automatic page view tracking for active funnels
-- Funnel completion triggers immediate event flush
+**Funnel context lost**
+- sessionStorage required
+- Same `projectKey` across pages
+- Call `funnel()` before navigation
 
 ---
 
-## ❓ Troubleshooting
-
-### Events not showing up in dashboard
-
-**Check:**
-
-1. Is `env: 'development'` enabled? Events won't be sent in dev mode.
-2. Is your project key correct? Verify at [onbored.io](https://onbored.io)
-3. Check browser console for errors with `debug: true`
-4. Verify network requests in DevTools Network tab
-
-**Example:**
-
-```typescript
-onbored.init({
-  projectKey: 'pk_live_1234567890abcdef',
-  debug: true, // Enable debug logging
-  env: 'production', // Make sure it's not 'development'
-});
-```
-
----
-
-### React hooks not working
-
-**Issue:** `useFunnel` throws "SDK not initialized"
-
-**Solution:** Ensure `OnboredProvider` wraps your components
-
-```tsx
-// ❌ Wrong
-<YourComponent />
-
-// ✅ Correct
-<OnboredProvider config={{ projectKey: '...' }}>
-  <YourComponent />
-</OnboredProvider>
-```
-
----
-
-### Session not persisting
-
-**Issue:** New session on every page load
-
-**Solution:** Check localStorage access. Some browsers block localStorage in incognito mode or with strict privacy settings.
-
-```typescript
-// Check localStorage availability
-try {
-  localStorage.setItem('test', 'test');
-  localStorage.removeItem('test');
-} catch (e) {
-  console.error('localStorage not available');
-}
-```
-
----
-
-### Funnel context lost on page reload
-
-**Issue:** Funnel context not restored after navigation
-
-**Solution:** Funnel contexts are stored in sessionStorage. Ensure:
-
-1. You're using the same `projectKey`
-2. SessionStorage is available
-3. Funnel was properly initialized before navigation
-
----
-## 🤝 Contributing
-
-We welcome contributions! Please see our contributing guidelines for more details.
-
-### Development Setup
+## Development
 
 ```bash
-# Clone the repo
-git clone https://github.com/MohamedH1998/onbored-js.git
-cd onbored-js
-
-# Install dependencies
+git clone https://github.com/MohamedH1998/onbored-js.git && cd onbored-js
 pnpm install
-
-# Run tests
-pnpm test
-
-# Run E2E tests
-pnpm test:e2e
-
-# Build the project
-pnpm build
-
-# Watch mode for development
-pnpm dev
+pnpm dev        # Watch mode
+pnpm test       # Unit tests
+pnpm test:e2e   # E2E (Playwright)
+pnpm build      # Build for production
 ```
 
-### Running Tests
+**Releases:** [Changesets](https://github.com/changesets/changesets) + GitHub Actions
+1. `pnpm changeset` → describe change
+2. Commit changeset file
+3. Merge to `main` → auto-publish to npm
 
-```bash
-# Unit tests
-pnpm test
-
-# Unit tests with coverage
-pnpm test:coverage
-
-# E2E tests
-pnpm test:e2e
-
-# E2E tests with UI
-pnpm test:e2e:ui
-
-# All tests
-pnpm test:all
-```
+**Pre-release stages:** alpha → beta → rc → stable (currently alpha)
 
 ---
 
-## 📄 License
+## Links
+
+[Website](https://onbored.io) • [npm](https://npmjs.com/package/onbored-js) • [GitHub](https://github.com/MohamedH1998/onbored-js) • [Issues](https://github.com/MohamedH1998/onbored-js/issues)
+
+**Support:** info@onbored.io • [@momito](https://twitter.com/momito)
 
 MIT © [Onbored](https://onbored.io)
-
----
-
-## 🔗 Links
-
-- **Website:** [https://onbored.io](https://onbored.io)
-- **Documentation:** Coming soon...
-- **NPM Package:** [https://www.npmjs.com/package/onbored-js](https://www.npmjs.com/package/onbored-js)
-- **GitHub:** [https://github.com/MohamedH1998/onbored-js](https://github.com/MohamedH1998/onbored-js)
-- **Issues:** [https://github.com/MohamedH1998/onbored-js/issues](https://github.com/MohamedH1998/onbored-js/issues)
-
----
-
-## 💬 Support
-
-Need help? Reach out:
-
-- 📧 Email: info@onbored.io
-- 🐦 Twitter: [@momito](https://twitter.com/momito)
-
----
-
-Made with ❤️ by Mohamed
