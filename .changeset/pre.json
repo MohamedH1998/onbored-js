@@ -5,6 +5,7 @@
     "onbored-js": "0.1.0-alpha.7"
   },
   "changesets": [
-    "happy-birds-type"
+    "happy-birds-type",
+    "witty-jobs-say"
   ]
 }
