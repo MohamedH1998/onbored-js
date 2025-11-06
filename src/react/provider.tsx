@@ -14,7 +14,7 @@ interface OnboredProviderProps {
 export function OnboredProvider({ children, config }: OnboredProviderProps) {
   const [prevConfig, setPrevConfig] = useState<typeof config>();
   const [isInitialized, setIsInitialized] = useState(false);
-  const logger = new Logger('[Onbored]', config.debug ? 'debug' : 'info');
+  const logger = new Logger('[Onbored]', config?.debug ? 'debug' : 'info');
 
   if (config !== prevConfig) {
     setPrevConfig(config);

@@ -56,12 +56,7 @@ export class OnboredClient implements OnboredClientInterface {
 
   protected eventBuffer: EventPayload[] = [];
   protected bufferKey: string;
-  protected funnelBuffer: Array<{
-    slug: string;
-    flowId: string;
-    metadata?: Options;
-  }> = [];
-  protected funnelBufferKey: string;
+  protected funnelBuffer: EventPayload[] = [];
 
   protected queuedStepViews: Array<{
     stepName: string;
@@ -133,7 +128,6 @@ export class OnboredClient implements OnboredClientInterface {
     this.activityStorageKey = settings.storage.activityStorageKey ?? '';
     this.flowContextStorageKey = settings.storage.flowContextStorageKey ?? '';
     this.bufferKey = `ob-buffer-${this.projectKey}`;
-    this.funnelBufferKey = `ob-funnel-buffer-${this.projectKey}`;
 
     this.sessionId = this._getOrSetSessionId();
     this.headers = settings.global.headers ?? {};
@@ -149,7 +143,6 @@ export class OnboredClient implements OnboredClientInterface {
     this.initPromise = this._init();
 
     this._restoreBuffer();
-    this._restoreFunnelBuffer();
 
     // Global flush function for debugging
     if (this.env === 'development' && typeof window !== 'undefined') {
@@ -349,12 +342,24 @@ export class OnboredClient implements OnboredClientInterface {
   private _restoreBuffer() {
     try {
       const stored = localStorage.getItem(this.bufferKey);
-      if (stored) {
-        this.eventBuffer = JSON.parse(stored);
+      if (!stored) return;
+
+      const buffer = JSON.parse(stored);
+
+      // Check if buffer belongs to current session
+      if (buffer.sessionId && buffer.sessionId !== this.sessionId) {
         this.logger.debug(
-          `Restored ${this.eventBuffer.length} buffered events`
+          `Discarding buffer from expired session: ${buffer.sessionId}`
         );
+        localStorage.removeItem(this.bufferKey);
+        return;
       }
+
+      this.eventBuffer = buffer.events || [];
+      this.funnelBuffer = buffer.funnels || [];
+      this.logger.debug(
+        `Restored ${this.eventBuffer.length} buffered events and ${this.funnelBuffer.length} funnels`
+      );
     } catch (err) {
       this.logger.warn('Failed to restore buffer:', err);
     }
@@ -362,34 +367,14 @@ export class OnboredClient implements OnboredClientInterface {
 
   private _persistBuffer() {
     try {
-      localStorage.setItem(this.bufferKey, JSON.stringify(this.eventBuffer));
+      const buffer = {
+        sessionId: this.sessionId,
+        events: this.eventBuffer,
+        funnels: this.funnelBuffer,
+      };
+      localStorage.setItem(this.bufferKey, JSON.stringify(buffer));
     } catch (err) {
       this.logger.warn('Failed to persist buffer:', err);
-    }
-  }
-
-  private _restoreFunnelBuffer() {
-    try {
-      const stored = localStorage.getItem(this.funnelBufferKey);
-      if (stored) {
-        this.funnelBuffer = JSON.parse(stored);
-        this.logger.debug(
-          `Restored ${this.funnelBuffer.length} buffered funnels`
-        );
-      }
-    } catch (err) {
-      this.logger.warn('Failed to restore funnel buffer:', err);
-    }
-  }
-
-  private _persistFunnelBuffer() {
-    try {
-      localStorage.setItem(
-        this.funnelBufferKey,
-        JSON.stringify(this.funnelBuffer)
-      );
-    } catch (err) {
-      this.logger.warn('Failed to persist funnel buffer:', err);
     }
   }
 
@@ -759,57 +744,29 @@ export class OnboredClient implements OnboredClientInterface {
         `Flushing ${this.funnelBuffer.length} buffered funnels with account_id`
       );
 
-      const funnelsToFlush = [...this.funnelBuffer];
+      const funnelsToFlush = this.funnelBuffer.map(payload => ({
+        ...payload,
+        account_id: accountId,
+        ...(this.accountTraits && { account_traits: this.accountTraits }),
+        ...(this.userTraits && { user_traits: this.userTraits }),
+      }));
       this.funnelBuffer = [];
 
-      try {
-        localStorage.removeItem(this.funnelBufferKey);
-      } catch (err) {
-        this.logger.warn('Failed to clear funnel buffer from storage:', err);
-      }
+      // Process each buffered funnel - send with original timestamp
+      for (const payload of funnelsToFlush) {
+        const slug = payload.funnel_slug;
+        const flowId = payload.flow_id;
 
-      // Process each buffered funnel - send flow_started event with existing flowId
-      for (const bufferedFunnel of funnelsToFlush) {
-        const context = this._getFlowContext(bufferedFunnel.slug);
-        if (!context) {
-          this.logger.warn(
-            'No flow context found for buffered funnel:',
-            bufferedFunnel.slug
-          );
+        if (!slug || !flowId) {
+          this.logger.warn('Invalid buffered funnel payload:', payload);
           continue;
         }
 
         try {
-          const timestampData = this._getTimestampData();
-          const payload: EventPayload = {
-            id: crypto.randomUUID(),
-            event_type: 'flow_started',
-            flow_id: bufferedFunnel.flowId,
-            step_id: 'flow_started',
-            funnel_slug: bufferedFunnel.slug,
-            ...(bufferedFunnel.metadata && {
-              metadata: bufferedFunnel.metadata,
-            }),
-            session_id: this.sessionId,
-            timestamp: timestampData.timestamp,
-            timezone: timestampData.timezone,
-            timezone_offset: timestampData.timezone_offset,
-            project_key: this.projectKey,
-            ...(this.userId && { user_id: this.userId }),
-            ...(accountId && { account_id: accountId }),
-            ...(this.userTraits && { user_traits: this.userTraits }),
-            ...(this.accountTraits && { account_traits: this.accountTraits }),
-            url: window.location.href,
-            ...(document.referrer && { referrer: document.referrer }),
-          };
-
           if (this.env === 'development') {
-            this.logger.info(
-              'Mock funnel started (buffered):',
-              bufferedFunnel.slug
-            );
+            this.logger.info('Mock funnel started (buffered):', slug);
             this.eventQueue.push(payload);
-            this._processQueuedStepViews(bufferedFunnel.slug);
+            this._processQueuedStepViews(slug);
             continue;
           }
 
@@ -825,8 +782,8 @@ export class OnboredClient implements OnboredClientInterface {
             continue;
           }
 
-          this.trackingPageviewsForFlows.add(bufferedFunnel.flowId);
-          this._processQueuedStepViews(bufferedFunnel.slug);
+          this.trackingPageviewsForFlows.add(flowId);
+          this._processQueuedStepViews(slug);
         } catch (err) {
           this.logger.error('Buffered funnel registration failed:', err);
         }
@@ -861,14 +818,30 @@ export class OnboredClient implements OnboredClientInterface {
     });
     this._saveFlowContextToStorage();
 
-    // Buffer funnel if no accountId
+    const payload: EventPayload = {
+      id: crypto.randomUUID(),
+      event_type: 'flow_started',
+      flow_id: flowId,
+      step_id: 'flow_started',
+      funnel_slug: slug,
+      ...(metadata && { metadata }),
+      session_id: this.sessionId,
+      timestamp: timestampData.timestamp,
+      timezone: timestampData.timezone,
+      timezone_offset: timestampData.timezone_offset,
+      project_key: this.projectKey,
+      ...(this.userId && { user_id: this.userId }),
+      ...(this.accountId && { account_id: this.accountId }),
+      ...(this.userTraits && { user_traits: this.userTraits }),
+      ...(this.accountTraits && { account_traits: this.accountTraits }),
+      url: window.location.href,
+      ...(document.referrer && { referrer: document.referrer }),
+    };
+
+    // Buffer funnel payload if no accountId
     if (!this.accountId) {
-      this.funnelBuffer.push({
-        slug,
-        flowId,
-        ...(metadata && { metadata }),
-      });
-      this._persistFunnelBuffer();
+      this.funnelBuffer.push(payload);
+      this._persistBuffer();
       this.logger.debug(
         'Funnel buffered (no account):',
         slug,
@@ -879,26 +852,6 @@ export class OnboredClient implements OnboredClientInterface {
     }
 
     try {
-      const payload: EventPayload = {
-        id: crypto.randomUUID(),
-        event_type: 'flow_started',
-        flow_id: flowId,
-        step_id: 'flow_started',
-        funnel_slug: slug,
-        ...(metadata && { metadata }),
-        session_id: this.sessionId,
-        timestamp: timestampData.timestamp,
-        timezone: timestampData.timezone,
-        timezone_offset: timestampData.timezone_offset,
-        project_key: this.projectKey,
-        ...(this.userId && { user_id: this.userId }),
-        ...(this.accountId && { account_id: this.accountId }),
-        ...(this.userTraits && { user_traits: this.userTraits }),
-        ...(this.accountTraits && { account_traits: this.accountTraits }),
-        url: window.location.href,
-        ...(document.referrer && { referrer: document.referrer }),
-      };
-
       if (this.env === 'development') {
         this.logger.info('Mock funnel started:', slug);
         // Queue the event in development mode
@@ -1136,7 +1089,6 @@ export class OnboredClient implements OnboredClientInterface {
     this.funnelBuffer = [];
     try {
       localStorage.removeItem(this.bufferKey);
-      localStorage.removeItem(this.funnelBufferKey);
     } catch (err) {
       this.logger.warn('Failed to clear buffers on reset:', err);
     }
