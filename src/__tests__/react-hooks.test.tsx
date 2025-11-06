@@ -318,8 +318,7 @@ describe('React Hooks', () => {
       // Should not call init with undefined, should log warning instead
       expect(onbored.init).not.toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[OnboredProvider] Failed to initialize:',
-        expect.any(Error)
+        '[Onbored] [WARN] Failed to initialize: config is required'
       );
 
       consoleSpy.mockRestore();

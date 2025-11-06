@@ -77,23 +77,35 @@ describe('Event Buffer', () => {
       const mockStorage = getMockStorage();
       const projectKey = createMockProjectKey();
       const bufferKey = `ob-buffer-${projectKey}`;
+      const sessionId = '12345678-1234-1234-1234-123456789012'; // Valid UUID format
 
-      const bufferedEvents = [
-        {
-          id: 'event-1',
-          event_type: 'page_viewed',
-          url: 'http://example.com',
-          session_id: 'session-1',
-          timestamp: new Date().toISOString(),
-          timezone: 'Europe/London',
-          timezone_offset: 0,
-          project_key: projectKey,
-        },
-      ];
+      // Create buffer without sessionId to test that client restores it
+      // (sessionId will be set by client on first persist)
+      const bufferedData = {
+        events: [
+          {
+            id: 'event-1',
+            event_type: 'page_viewed',
+            url: 'http://example.com',
+            session_id: sessionId,
+            timestamp: new Date().toISOString(),
+            timezone: 'Europe/London',
+            timezone_offset: 0,
+            project_key: projectKey,
+          },
+        ],
+        funnels: [],
+      };
 
       mockStorage.localStorage.getItem.mockImplementation((key: string) => {
         if (key === bufferKey) {
-          return JSON.stringify(bufferedEvents);
+          return JSON.stringify(bufferedData);
+        }
+        if (key === `ob-session-${projectKey}`) {
+          return sessionId;
+        }
+        if (key === `ob-activity-${projectKey}`) {
+          return String(Date.now());
         }
         return null;
       });
@@ -364,12 +376,12 @@ describe('Event Buffer', () => {
       // Start a funnel without accountId
       await client.funnel('onboarding');
 
-      // Check that funnel is buffered with flowId
+      // Check that funnel is buffered with flowId (now stored as full payload)
       const bufferedFunnels = client._getBufferedFunnels();
       expect(bufferedFunnels.length).toBe(1);
-      expect(bufferedFunnels[0]).toHaveProperty('slug', 'onboarding');
-      expect(bufferedFunnels[0]).toHaveProperty('flowId');
-      expect(bufferedFunnels[0]?.flowId).toBeTruthy();
+      expect(bufferedFunnels[0]).toHaveProperty('funnel_slug', 'onboarding');
+      expect(bufferedFunnels[0]).toHaveProperty('flow_id');
+      expect(bufferedFunnels[0]?.flow_id).toBeTruthy();
     });
 
     it('should allow events to reference flowId from buffered funnel', async () => {
@@ -385,7 +397,7 @@ describe('Event Buffer', () => {
 
       // Get the buffered funnel's flowId
       const bufferedFunnels = client._getBufferedFunnels();
-      const funnelFlowId = bufferedFunnels[0]?.flowId;
+      const funnelFlowId = bufferedFunnels[0]?.flow_id;
 
       // Track a step - this should get the flowId from flow context
       await client.step('profile_created', { slug: 'onboarding' });
@@ -414,7 +426,7 @@ describe('Event Buffer', () => {
 
       // Get the original flowId
       const bufferedFunnels = client._getBufferedFunnels();
-      const originalFlowId = bufferedFunnels[0]?.flowId;
+      const originalFlowId = bufferedFunnels[0]?.flow_id;
 
       // Track some steps
       await client.step('profile_created', { slug: 'onboarding' });
@@ -513,7 +525,7 @@ describe('Event Buffer', () => {
       expect(bufferedFunnels.length).toBe(3);
 
       // Each should have a unique flowId
-      const flowIds = bufferedFunnels.map(f => f.flowId);
+      const flowIds = bufferedFunnels.map(f => f.flow_id);
       const uniqueFlowIds = new Set(flowIds);
       expect(uniqueFlowIds.size).toBe(3);
 
